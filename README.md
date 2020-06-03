@@ -1,8 +1,11 @@
 # golang-frac
 
  Fractal rendering test.
+ 
  Using golang, embiten and sizedwaitgroup.
+ 
  Multi-threaded, auto-detects number of logical CPUs.
+ 
  
  Windows: Just need golang, run: go get, run: go build and run exe.
  
