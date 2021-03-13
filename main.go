@@ -39,6 +39,7 @@ const (
 	screenHeight = 1500
 	maxIt        = 10000
 	gamma        = 0.3
+	fps          = 4
 )
 
 var (
@@ -61,7 +62,7 @@ func updateOffscreen(centerX, centerY, size float64) {
 	go func() {
 		for {
 			offscreen.ReplacePixels(offscreenPix)
-			time.Sleep(time.Second)
+			time.Sleep((1000 / fps) * time.Millisecond)
 		}
 	}()
 
@@ -92,7 +93,6 @@ func updateOffscreen(centerX, centerY, size float64) {
 				}
 
 			}(j)
-			time.Sleep(time.Nanosecond)
 		}
 		swg.Wait()
 	}()
