@@ -11,6 +11,29 @@ import (
 	"github.com/remeh/sizedwaitgroup"
 )
 
+type Game struct{}
+
+func (g *Game) Update() error {
+	return nil
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+	screen.DrawImage(offscreen, nil)
+}
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	return screenWidth, screenHeight
+}
+
+func main() {
+	ebiten.SetWindowSize(screenWidth, screenHeight)
+	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
+
+	if err := ebiten.RunGame(&Game{}); err != nil {
+		log.Fatal(err)
+	}
+}
+
 const (
 	screenWidth  = 1500
 	screenHeight = 1500
@@ -78,7 +101,7 @@ func updateOffscreen(centerX, centerY, size float64) {
 
 func init() {
 	fmt.Printf("Allocating image...")
-	offscreen, _ = ebiten.NewImage(screenWidth, screenHeight, ebiten.FilterDefault)
+	offscreen = ebiten.NewImage(screenWidth, screenHeight)
 	offscreenPix = make([]byte, screenWidth*screenHeight*4)
 	fmt.Printf("complete!\n")
 
@@ -94,27 +117,4 @@ func init() {
 	swg.Wait()
 	fmt.Printf("complete!\n")
 	updateOffscreen(-0.75, 0.25, 2)
-}
-
-type Game struct {
-}
-
-func (g *Game) Update(screen *ebiten.Image) error {
-	return nil
-}
-
-func (g *Game) Draw(screen *ebiten.Image) {
-	screen.DrawImage(offscreen, nil)
-}
-
-func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return screenWidth, screenHeight
-}
-
-func main() {
-	ebiten.SetWindowSize(screenWidth, screenHeight)
-	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
-	if err := ebiten.RunGame(&Game{}); err != nil {
-		log.Fatal(err)
-	}
 }
