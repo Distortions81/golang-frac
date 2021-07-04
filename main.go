@@ -20,7 +20,7 @@ const (
 	offX         = -0.34831493420245574
 	offY         = 0.606486596104741
 	zoomSpeed    = 1
-	gamma        = 0.6
+	gamma        = 0.4
 )
 
 var op *ebiten.DrawImageOptions
@@ -54,16 +54,16 @@ func main() {
 var (
 	offscreen    *ebiten.Image
 	offscreenPix []byte
-	palette      [maxIters]byte
+	palette      [maxIters]int
 	numThreads   = runtime.NumCPU()
 )
 
-func color(it int) (r, g, b byte) {
-	if it == maxIters {
-		return 0xff, 0xff, 0xff
+func color(it int) (c byte) {
+	if it >= maxIters {
+		return 0xff
 	}
-	c := palette[it]
-	return c, c, c
+	l := byte((float64(palette[it]) / float64(maxIters)) * 0xff)
+	return l
 }
 
 func updateOffscreen(centerX, centerY, size float64) {
@@ -85,11 +85,11 @@ func updateOffscreen(centerX, centerY, size float64) {
 						break
 					}
 				}
-				r, g, b := color(it)
+				a := color(it)
 				p := 4 * (i + j*renderWidth)
-				offscreenPix[p] = r
-				offscreenPix[p+1] = g
-				offscreenPix[p+2] = b
+				offscreenPix[p] = a
+				offscreenPix[p+1] = a
+				offscreenPix[p+2] = a
 				offscreenPix[p+3] = 0xff
 			}
 
@@ -102,12 +102,15 @@ func updateOffscreen(centerX, centerY, size float64) {
 }
 
 func init() {
+
+	buf := fmt.Sprintf("Threads found: %x", numThreads)
+	fmt.Println(buf)
+
 	fmt.Printf("Allocating image...")
 	offscreen = ebiten.NewImage(renderWidth, renderHeight)
 	offscreenPix = make([]byte, renderWidth*renderHeight*4)
 
 	op = &ebiten.DrawImageOptions{}
-
 	fmt.Printf("complete!\n")
 
 	fmt.Printf("Building gamma table...")
@@ -116,14 +119,14 @@ func init() {
 		swg.Add()
 		go func(i int) {
 			defer swg.Done()
-			palette[i] = byte((math.Pow(float64(i)/float64(maxIters+1), gamma) * 0xff))
+			palette[i] = int(math.Pow(float64(i)/float64(maxIters+1), gamma)*maxIters + 1)
+			//buf := fmt.Sprintf("%d, ", palette[i])
+			//fmt.Print(buf)
 		}(i)
 	}
 
 	swg.Wait()
 	fmt.Printf("complete!\n")
-	buf := fmt.Sprintf("Threads found: %d", numThreads)
-	fmt.Println(buf)
 
 	go func() {
 		for {
