@@ -21,12 +21,12 @@ const (
 	winHeight    = 1024
 	renderWidth  = winWidth * superSample
 	renderHeight = winHeight * superSample
-	maxIters     = 1000
+	maxIters     = 100
 	offX         = -0.34831493420245574
 	offY         = 0.606486596104741
 	zoomSpeed    = 1
-	wheelSpeed   = 0.05
-	gamma        = 0.3
+	wheelSpeed   = 0.005
+	gamma        = 0.6
 )
 
 var curZoom float64 = 1.0
@@ -70,7 +70,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op.Filter = ebiten.FilterLinear
 
 	screen.DrawImage(offscreen, op)
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("TPS: %0.2f, frame: %d, zoom: %0.2f, wheel: %0.2f", ebiten.CurrentTPS(), zoomInt-startOffset, curZoom, g.y))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("UPS: %0.2f, as: %d, z: %0.2f, w: %0.2f, t: %d", ebiten.CurrentTPS(), zoomInt-startOffset, curZoom, g.y, numThreads))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -141,6 +141,9 @@ func init() {
 
 	buf := fmt.Sprintf("Threads found: %x", numThreads)
 	fmt.Println(buf)
+	if numThreads < 4 {
+		numThreads = 2
+	}
 
 	fmt.Printf("Allocating image...")
 	offscreen = ebiten.NewImage(renderWidth, renderHeight)
