@@ -5,11 +5,12 @@ import (
 	"log"
 	"math"
 	"runtime"
-	"time"
 
 	"github.com/hajimehoshi/ebiten"
 	"github.com/remeh/sizedwaitgroup"
 )
+
+var zoom float64 = 0.0
 
 type Game struct{}
 
@@ -35,10 +36,10 @@ func main() {
 }
 
 const (
-	screenWidth  = 1500
-	screenHeight = 1500
-	maxIt        = 10000
-	gamma        = 0.3
+	screenWidth  = 1024
+	screenHeight = 1024
+	maxIt        = 500
+	gamma        = 0.4
 	fps          = 4
 )
 
@@ -59,43 +60,35 @@ func color(it int) (r, g, b byte) {
 
 func updateOffscreen(centerX, centerY, size float64) {
 
-	go func() {
-		for {
-			offscreen.ReplacePixels(offscreenPix)
-			time.Sleep((1000 / fps) * time.Millisecond)
-		}
-	}()
-
-	go func() {
-		swg := sizedwaitgroup.New(numThreads)
-		for j := 0; j < screenHeight; j++ {
-			swg.Add()
-			go func(j int) {
-				defer swg.Done()
-				for i := 0; i < screenWidth; i++ {
-					x := float64(i)*size/screenHeight - size/2 + centerX
-					y := (screenHeight-float64(j))*size/screenHeight - size/2 + centerY
-					c := complex(x, y)
-					z := complex(0, 0)
-					it := 0
-					for ; it < maxIt; it++ {
-						z = z*z + c
-						if real(z)*real(z)+imag(z)*imag(z) > 4 {
-							break
-						}
+	swg := sizedwaitgroup.New(numThreads)
+	for j := 0; j < screenHeight; j++ {
+		swg.Add()
+		go func(j int) {
+			defer swg.Done()
+			for i := 0; i < screenWidth; i++ {
+				x := float64(i)*size/screenHeight - size/2 + centerX
+				y := (screenHeight-float64(j))*size/screenHeight - size/2 + centerY
+				c := complex(x, y)
+				z := complex(-zoom, zoom)
+				it := 0
+				for ; it < maxIt; it++ {
+					z = z*z + c
+					if real(z)*real(z)+imag(z)*imag(z) > 4 {
+						break
 					}
-					r, g, b := color(it)
-					p := 4 * (i + j*screenWidth)
-					offscreenPix[p] = r
-					offscreenPix[p+1] = g
-					offscreenPix[p+2] = b
-					offscreenPix[p+3] = 0xff
 				}
+				r, g, b := color(it)
+				p := 4 * (i + j*screenWidth)
+				offscreenPix[p] = r
+				offscreenPix[p+1] = g
+				offscreenPix[p+2] = b
+				offscreenPix[p+3] = 0xff
+			}
 
-			}(j)
-		}
-		swg.Wait()
-	}()
+		}(j)
+	}
+	swg.Wait()
+	offscreen.ReplacePixels(offscreenPix)
 
 }
 
@@ -114,7 +107,14 @@ func init() {
 			palette[i] = byte((math.Pow(float64(i)/float64(maxIt+1), gamma) * 0xff))
 		}(i)
 	}
+
 	swg.Wait()
 	fmt.Printf("complete!\n")
-	updateOffscreen(-0.75, 0.25, 2)
+
+	go func() {
+		for {
+			updateOffscreen(-0.7, 0.3, 3)
+			zoom = zoom + (0.0005)
+		}
+	}()
 }
