@@ -5,13 +5,24 @@ import (
 	"log"
 	"math"
 	"runtime"
+	"time"
 
 	"github.com/hajimehoshi/ebiten"
 	"github.com/remeh/sizedwaitgroup"
 )
 
-var zoom float64 = 0
-var zoomCount int = 0
+const (
+	screenWidth  = 1024
+	screenHeight = 1024
+	maxIters     = 1000
+	offX         = -0.34831493420245574
+	offY         = 0.606486596104741
+	zoomSpeed    = 0.1
+	gamma        = 0.6
+)
+
+var curZoom float64 = 1
+var zoomInt int = 2
 
 type Game struct{}
 
@@ -36,23 +47,15 @@ func main() {
 	}
 }
 
-const (
-	screenWidth  = 1024
-	screenHeight = 1024
-	maxIt        = 2000
-	gamma        = 0.33333333
-	fps          = 4
-)
-
 var (
 	offscreen    *ebiten.Image
 	offscreenPix []byte
-	palette      [maxIt]byte
+	palette      [maxIters]byte
 	numThreads   = runtime.NumCPU()
 )
 
 func color(it int) (r, g, b byte) {
-	if it == maxIt {
+	if it == maxIters {
 		return 0xff, 0xff, 0xff
 	}
 	c := palette[it]
@@ -69,12 +72,12 @@ func updateOffscreen(centerX, centerY, size float64) {
 			for i := 0; i < screenWidth; i++ {
 				fi := float64(i)
 				fj := float64(j)
-				x := (fi/screenHeight-0.5)/size*3.0 - 0.7
-				y := (fj/screenWidth - 0.5) / size * 3.0
-				c := complex(x, y)
+				x := (fj/screenHeight-0.5)/size*3.0 + centerX
+				y := (fi/screenWidth-0.5)/size*3.0 + centerY
+				c := complex(x, y) //Rotate
 				z := complex(0, 0)
 				it := 0
-				for ; it < maxIt; it++ {
+				for ; it < maxIters; it++ {
 					z = z*z + c
 					if real(z)*real(z)+imag(z)*imag(z) > 4 {
 						break
@@ -92,6 +95,7 @@ func updateOffscreen(centerX, centerY, size float64) {
 	}
 	swg.Wait()
 	offscreen.ReplacePixels(offscreenPix)
+	time.Sleep(time.Millisecond)
 
 }
 
@@ -102,25 +106,29 @@ func init() {
 	fmt.Printf("complete!\n")
 
 	fmt.Printf("Building gamma table...")
-	swg := sizedwaitgroup.New(numThreads)
+	swg := sizedwaitgroup.New((numThreads))
 	for i := range palette {
 		swg.Add()
 		go func(i int) {
 			defer swg.Done()
-			palette[i] = byte((math.Pow(float64(i)/float64(maxIt+1), gamma) * 0xff))
+			palette[i] = byte((math.Pow(float64(i)/float64(maxIters+1), gamma) * 0xff))
 		}(i)
 	}
 
 	swg.Wait()
 	fmt.Printf("complete!\n")
+	buf := fmt.Sprintf("Threads found: %d", numThreads)
+	fmt.Println(buf)
 
 	go func() {
 		for {
-			updateOffscreen(0.0, 0.0, zoom)
-			zoomCount = zoomCount + 1
+			updateOffscreen(offX, offY, curZoom)
+			zoomInt = zoomInt + 1
+			sStep := float64(zoomInt) / 1000.0
+			curZoom = curZoom + (sStep * sStep * sStep * float64(zoomSpeed))
 
-			zoom = zoom + (0.08 / math.Sqrt(float64(zoomCount)))
-			fmt.Println(zoom)
+			//buf := fmt.Sprintf("%f", curZoom)
+			//fmt.Println(buf)
 		}
 	}()
 }
