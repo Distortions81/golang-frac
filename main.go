@@ -9,61 +9,68 @@ import (
 
 	"github.com/hajimehoshi/ebiten"
 	"github.com/hajimehoshi/ebiten/ebitenutil"
+	"github.com/hajimehoshi/ebiten/inpututil"
 	"github.com/remeh/sizedwaitgroup"
 )
 
 const (
-	startOffset  = 32
-	multiSample  = 4
+	autoZoom     = false
+	startOffset  = 48
+	superSample  = 0.5
 	winWidth     = 1024
 	winHeight    = 1024
-	renderWidth  = winWidth * multiSample
-	renderHeight = winHeight * multiSample
+	renderWidth  = winWidth * superSample
+	renderHeight = winHeight * superSample
 	maxIters     = 1000
 	offX         = -0.34831493420245574
 	offY         = 0.606486596104741
 	zoomSpeed    = 1
-	gamma        = 0.4
+	wheelSpeed   = 0.05
+	gamma        = 0.3
 )
 
-var curZoom float64 = 1
+var curZoom float64 = 1.0
 var zoomInt int = startOffset
-
-type viewport struct {
-	x16 int
-	y16 int
-}
-
-func (p *viewport) Move() {
-}
-
-func (p *viewport) Position() (int, int) {
-	return p.x16, p.y16
-}
+var sx float64 = 0.0
+var sy float64 = 0.0
 
 type Game struct {
-	viewport viewport
+	x float64
+	y float64
 }
 
 func (g *Game) Update() error {
-	g.viewport.Move()
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonMiddle) {
+		g.x = 0
+		g.y = 0
+	} else {
+		dx, dy := ebiten.Wheel()
+		g.x += dx * wheelSpeed
+		g.y += dy * wheelSpeed
+	}
 	return nil
 }
+
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	updateOffscreen(offX, offY, curZoom)
-	zoomInt = zoomInt + 1
-	sStep := float64(zoomInt) / 1000.0
-	curZoom = curZoom + (sStep * sStep * float64(zoomSpeed))
+
+	if autoZoom {
+		zoomInt = zoomInt + 1
+		sStep := float64(zoomInt) / 1000.0
+		curZoom = curZoom + (sStep * sStep * float64(zoomSpeed))
+	} else {
+		curZoom += (g.y) * curZoom * wheelSpeed
+	}
 
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(1.0/multiSample, 1.0/multiSample)
+	op.GeoM.Scale(1.0/superSample, 1.0/superSample)
 	op.GeoM.Translate(0, 0)
 	// Specify linear filter.
 	op.Filter = ebiten.FilterLinear
 
 	screen.DrawImage(offscreen, op)
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("TPS: %0.2f, frame: %d, zoom: %.2f", ebiten.CurrentTPS(), zoomInt-startOffset, curZoom))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("TPS: %0.2f, frame: %d, zoom: %0.2f, wheel: %0.2f", ebiten.CurrentTPS(), zoomInt-startOffset, curZoom, g.y))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
