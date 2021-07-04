@@ -12,14 +12,18 @@ import (
 )
 
 const (
-	screenWidth  = 1024
-	screenHeight = 1024
+	renderWidth  = 1024
+	renderHeight = 1024
+	winWidth     = renderWidth
+	winHeight    = renderHeight
 	maxIters     = 1000
 	offX         = -0.34831493420245574
 	offY         = 0.606486596104741
-	zoomSpeed    = 0.1
+	zoomSpeed    = 1
 	gamma        = 0.6
 )
+
+var op *ebiten.DrawImageOptions
 
 var curZoom float64 = 1
 var zoomInt int = 2
@@ -31,15 +35,15 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	screen.DrawImage(offscreen, nil)
+	screen.DrawImage(offscreen, op)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return screenWidth, screenHeight
+	return renderWidth, renderHeight
 }
 
 func main() {
-	ebiten.SetWindowSize(screenWidth, screenHeight)
+	ebiten.SetWindowSize(winWidth, winHeight)
 	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
@@ -65,15 +69,13 @@ func color(it int) (r, g, b byte) {
 func updateOffscreen(centerX, centerY, size float64) {
 
 	swg := sizedwaitgroup.New(numThreads)
-	for j := 0; j < screenHeight; j++ {
+	for j := 0; j < renderHeight; j++ {
 		swg.Add()
 		go func(j int) {
 			defer swg.Done()
-			for i := 0; i < screenWidth; i++ {
-				fi := float64(i)
-				fj := float64(j)
-				x := (fj/screenHeight-0.5)/size*3.0 + centerX
-				y := (fi/screenWidth-0.5)/size*3.0 + centerY
+			for i := 0; i < renderWidth; i++ {
+				x := (float64(j)/float64(renderHeight)-0.5)/size*3.0 + centerX
+				y := (float64(i)/float64(renderHeight)-0.5)/size*3.0 + centerY
 				c := complex(x, y) //Rotate
 				z := complex(0, 0)
 				it := 0
@@ -84,7 +86,7 @@ func updateOffscreen(centerX, centerY, size float64) {
 					}
 				}
 				r, g, b := color(it)
-				p := 4 * (i + j*screenWidth)
+				p := 4 * (i + j*renderWidth)
 				offscreenPix[p] = r
 				offscreenPix[p+1] = g
 				offscreenPix[p+2] = b
@@ -101,8 +103,11 @@ func updateOffscreen(centerX, centerY, size float64) {
 
 func init() {
 	fmt.Printf("Allocating image...")
-	offscreen = ebiten.NewImage(screenWidth, screenHeight)
-	offscreenPix = make([]byte, screenWidth*screenHeight*4)
+	offscreen = ebiten.NewImage(renderWidth, renderHeight)
+	offscreenPix = make([]byte, renderWidth*renderHeight*4)
+
+	op = &ebiten.DrawImageOptions{}
+
 	fmt.Printf("complete!\n")
 
 	fmt.Printf("Building gamma table...")
@@ -125,7 +130,7 @@ func init() {
 			updateOffscreen(offX, offY, curZoom)
 			zoomInt = zoomInt + 1
 			sStep := float64(zoomInt) / 1000.0
-			curZoom = curZoom + (sStep * sStep * sStep * float64(zoomSpeed))
+			curZoom = curZoom + (sStep * sStep * float64(zoomSpeed))
 
 			//buf := fmt.Sprintf("%f", curZoom)
 			//fmt.Println(buf)
