@@ -64,7 +64,7 @@ func color(it int) (r, g, b byte) {
 
 func updateOffscreen(centerX, centerY, size float64) {
 
-	swg := sizedwaitgroup.New(numThreads)
+	swg := sizedwaitgroup.New(numThreads * 2) //hyperthread
 	for j := 0; j < screenHeight; j++ {
 		swg.Add()
 		go func(j int) {
