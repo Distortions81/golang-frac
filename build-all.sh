@@ -22,6 +22,4 @@ echo "mac-x64"
 GOOS=darwin GOARCH=amd64 go build -o bin/main-mac-x64.bin
 
 echo "webasm"
-GOOS=js GOARCH=wasm go build -o main.wasm
-
-
+GOOS=js GOARCH=wasm go build -o wasm/main.wasm
