@@ -10,7 +10,7 @@ import (
 	"github.com/remeh/sizedwaitgroup"
 )
 
-var zoom float64 = 0.0
+var zoom float64 = 3.0
 
 type Game struct{}
 
@@ -38,8 +38,8 @@ func main() {
 const (
 	screenWidth  = 1024
 	screenHeight = 1024
-	maxIt        = 500
-	gamma        = 0.4
+	maxIt        = 2000
+	gamma        = 0.33333333
 	fps          = 4
 )
 
@@ -69,7 +69,7 @@ func updateOffscreen(centerX, centerY, size float64) {
 				x := float64(i)*size/screenHeight - size/2 + centerX
 				y := (screenHeight-float64(j))*size/screenHeight - size/2 + centerY
 				c := complex(x, y)
-				z := complex(-zoom, zoom)
+				z := complex(0, 0)
 				it := 0
 				for ; it < maxIt; it++ {
 					z = z*z + c
@@ -113,8 +113,8 @@ func init() {
 
 	go func() {
 		for {
-			updateOffscreen(-0.7, 0.3, 3)
-			zoom = zoom + (0.0005)
+			updateOffscreen(-0.235125, 0.827215, zoom)
+			zoom = zoom - (0.001 + (zoom / 100))
 		}
 	}()
 }
