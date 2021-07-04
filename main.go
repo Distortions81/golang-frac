@@ -8,14 +8,17 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten"
+	"github.com/hajimehoshi/ebiten/ebitenutil"
 	"github.com/remeh/sizedwaitgroup"
 )
 
 const (
-	renderWidth  = 1024
-	renderHeight = 1024
-	winWidth     = renderWidth
-	winHeight    = renderHeight
+	startOffset  = 32
+	multiSample  = 4
+	winWidth     = 1024
+	winHeight    = 1024
+	renderWidth  = winWidth * multiSample
+	renderHeight = winHeight * multiSample
 	maxIters     = 1000
 	offX         = -0.34831493420245574
 	offY         = 0.606486596104741
@@ -23,23 +26,48 @@ const (
 	gamma        = 0.4
 )
 
-var op *ebiten.DrawImageOptions
-
 var curZoom float64 = 1
-var zoomInt int = 2
+var zoomInt int = startOffset
 
-type Game struct{}
-
-func (g *Game) Update() error {
-	return nil
+type viewport struct {
+	x16 int
+	y16 int
 }
 
+func (p *viewport) Move() {
+}
+
+func (p *viewport) Position() (int, int) {
+	return p.x16, p.y16
+}
+
+type Game struct {
+	viewport viewport
+}
+
+func (g *Game) Update() error {
+	g.viewport.Move()
+	return nil
+}
 func (g *Game) Draw(screen *ebiten.Image) {
+
+	updateOffscreen(offX, offY, curZoom)
+	zoomInt = zoomInt + 1
+	sStep := float64(zoomInt) / 1000.0
+	curZoom = curZoom + (sStep * sStep * float64(zoomSpeed))
+
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(1.0/multiSample, 1.0/multiSample)
+	op.GeoM.Translate(0, 0)
+	// Specify linear filter.
+	op.Filter = ebiten.FilterLinear
+
 	screen.DrawImage(offscreen, op)
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("TPS: %0.2f, frame: %d, zoom: %.2f", ebiten.CurrentTPS(), zoomInt-startOffset, curZoom))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return renderWidth, renderHeight
+	return winWidth, winHeight
 }
 
 func main() {
@@ -96,6 +124,7 @@ func updateOffscreen(centerX, centerY, size float64) {
 		}(j)
 	}
 	swg.Wait()
+
 	offscreen.ReplacePixels(offscreenPix)
 	time.Sleep(time.Millisecond)
 
@@ -110,7 +139,6 @@ func init() {
 	offscreen = ebiten.NewImage(renderWidth, renderHeight)
 	offscreenPix = make([]byte, renderWidth*renderHeight*4)
 
-	op = &ebiten.DrawImageOptions{}
 	fmt.Printf("complete!\n")
 
 	fmt.Printf("Building gamma table...")
@@ -127,16 +155,4 @@ func init() {
 
 	swg.Wait()
 	fmt.Printf("complete!\n")
-
-	go func() {
-		for {
-			updateOffscreen(offX, offY, curZoom)
-			zoomInt = zoomInt + 1
-			sStep := float64(zoomInt) / 1000.0
-			curZoom = curZoom + (sStep * sStep * float64(zoomSpeed))
-
-			//buf := fmt.Sprintf("%f", curZoom)
-			//fmt.Println(buf)
-		}
-	}()
 }
