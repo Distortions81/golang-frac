@@ -1,2 +1,4 @@
 *.log
 golang-frac
+golang-frac
+out/*

@@ -2,37 +2,42 @@ package main
 
 import (
 	"fmt"
+	"image/png"
 	"log"
 	"math"
+	"math/rand"
+	"os"
 	"runtime"
 	"time"
 
-	"github.com/hajimehoshi/ebiten"
-	"github.com/hajimehoshi/ebiten/ebitenutil"
-	"github.com/hajimehoshi/ebiten/inpututil"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/remeh/sizedwaitgroup"
 )
 
 const (
-	autoZoom     = false
-	startOffset  = 48
-	superSample  = 0.5
-	winWidth     = 1024
-	winHeight    = 1024
-	renderWidth  = winWidth * superSample
-	renderHeight = winHeight * superSample
-	maxIters     = 100
-	offX         = -0.34831493420245574
-	offY         = 0.606486596104741
-	zoomSpeed    = 1
-	wheelSpeed   = 0.005
-	gamma        = 0.6
+	autoZoom    = true
+	startOffset = 48
+	superSample = 3
+	winWidth    = 1024 * 1
+	winHeight   = 1024 * 1
+	maxIters    = 1024 * 10
+	offX        = -0.77568377
+	offY        = 0.13646737
+	zoomSpeed   = 10
+	wheelSpeed  = 0.05
+	gamma       = 0.45454545454545 // 2.2
+	dither      = 2
+)
+
+var (
+	renderWidth  int = winWidth * superSample
+	renderHeight int = winHeight * superSample
 )
 
 var curZoom float64 = 1.0
 var zoomInt int = startOffset
-var sx float64 = 0.0
-var sy float64 = 0.0
 
 type Game struct {
 	x float64
@@ -88,20 +93,31 @@ func main() {
 
 var (
 	offscreen    *ebiten.Image
-	offscreenPix []byte
-	palette      [maxIters]int
+	offscreenPix []uint16
+	palette      [maxIters]byte
 	numThreads   = runtime.NumCPU()
+	count        uint64
 )
 
-func color(it int) (c byte) {
+func color(it uint16) (c byte) {
 	if it >= maxIters {
 		return 0xff
 	}
-	l := byte((float64(palette[it]) / float64(maxIters)) * 0xff)
-	return l
+
+	//Dither
+	/*f := rand.Float64()
+	if f > 0.5 {
+		return palette[it]
+	} else {
+		return palette[it] + dither
+
+	} */
+
+	return palette[it]
 }
 
 func updateOffscreen(centerX, centerY, size float64) {
+	count++
 
 	swg := sizedwaitgroup.New(numThreads)
 	for j := 0; j < renderHeight; j++ {
@@ -113,41 +129,70 @@ func updateOffscreen(centerX, centerY, size float64) {
 				y := (float64(i)/float64(renderHeight)-0.5)/size*3.0 + centerY
 				c := complex(x, y) //Rotate
 				z := complex(0, 0)
-				it := 0
+				var it uint16
 				for ; it < maxIters; it++ {
 					z = z*z + c
 					if real(z)*real(z)+imag(z)*imag(z) > 4 {
 						break
 					}
 				}
-				a := color(it)
-				p := 4 * (i + j*renderWidth)
-				offscreenPix[p] = a
-				offscreenPix[p+1] = a
-				offscreenPix[p+2] = a
-				offscreenPix[p+3] = 0xff
+				p := (i + j*renderWidth)
+				offscreenPix[p] = it
 			}
 
 		}(j)
 	}
 	swg.Wait()
 
-	offscreen.ReplacePixels(offscreenPix)
-	time.Sleep(time.Millisecond)
+	//Convert to byte
+	var nb = make([]byte, renderWidth*renderHeight*4)
+	var ii int = 0
+	for i := 0; i < len(offscreenPix); i++ {
+		c := color(offscreenPix[i])
+		nb[ii] = c
+		ii++
+		nb[ii] = c
+		ii++
+		nb[ii] = c
+		ii++
+		nb[ii] = 0xff
+		ii++
+	}
+
+	offscreen.ReplacePixels(nb)
+
+	buf := fmt.Sprintf("out/%v.png", count)
+	f, err := os.Create(buf)
+	if err != nil {
+		defer f.Close()
+		png.Encode(f, offscreen)
+	}
 
 }
 
 func init() {
 
+	rand.Seed(time.Now().UnixNano())
 	buf := fmt.Sprintf("Threads found: %x", numThreads)
 	fmt.Println(buf)
 	if numThreads < 4 {
 		numThreads = 2
 	}
 
-	fmt.Printf("Allocating image...")
+	fmt.Println("Allocating image...")
+
+	/* Max image size */
+	if renderWidth > 32768 {
+		renderWidth = 32768
+		fmt.Println("renderWidth > 32768, truncating...")
+	}
+	if renderHeight > 32768 {
+		renderHeight = 32768
+		fmt.Println("renderHeight > 32768, truncating...")
+	}
+
 	offscreen = ebiten.NewImage(renderWidth, renderHeight)
-	offscreenPix = make([]byte, renderWidth*renderHeight*4)
+	offscreenPix = make([]uint16, renderWidth*renderHeight)
 
 	fmt.Printf("complete!\n")
 
@@ -157,7 +202,8 @@ func init() {
 		swg.Add()
 		go func(i int) {
 			defer swg.Done()
-			palette[i] = int(math.Pow(float64(i)/float64(maxIters+1), gamma)*maxIters + 1)
+
+			palette[i] = byte(math.Pow(float64(i)/float64(maxIters+1), gamma) * float64(0xff))
 			//buf := fmt.Sprintf("%d, ", palette[i])
 			//fmt.Print(buf)
 		}(i)
