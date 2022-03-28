@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"image/png"
 	"log"
 	"math"
@@ -19,9 +20,9 @@ import (
 const (
 	autoZoom    = true
 	startOffset = 48
-	superSample = 3
-	winWidth    = 1024 * 1
-	winHeight   = 1024 * 1
+	superSample = 32
+	winWidth    = 1024
+	winHeight   = 1024
 	maxIters    = 1024 * 10
 	offX        = -0.77568377
 	offY        = 0.13646737
@@ -94,14 +95,14 @@ func main() {
 var (
 	offscreen    *ebiten.Image
 	offscreenPix []uint16
-	palette      [maxIters]byte
+	palette      [maxIters]uint16
 	numThreads   = runtime.NumCPU()
 	count        uint64
 )
 
-func color(it uint16) (c byte) {
+func lut(it uint16) (c uint16) {
 	if it >= maxIters {
-		return 0xff
+		return 0xffff
 	}
 
 	//Dither
@@ -145,28 +146,22 @@ func updateOffscreen(centerX, centerY, size float64) {
 	swg.Wait()
 
 	//Convert to byte
-	var nb = make([]byte, renderWidth*renderHeight*4)
-	var ii int = 0
-	for i := 0; i < len(offscreenPix); i++ {
-		c := color(offscreenPix[i])
-		nb[ii] = c
-		ii++
-		nb[ii] = c
-		ii++
-		nb[ii] = c
-		ii++
-		nb[ii] = 0xff
-		ii++
+	var nb = ebiten.NewImage(renderWidth, renderHeight)
+	for xx := 0; xx < renderWidth; xx++ {
+		for yy := 0; yy < renderHeight; yy++ {
+			a := lut(offscreenPix[xx+yy*renderWidth])
+			nb.Set(xx, yy, color.RGBA64{a, a, a, 0xffff})
+		}
 	}
 
-	offscreen.ReplacePixels(nb)
+	offscreen.DrawImage(nb, &ebiten.DrawImageOptions{})
 
 	buf := fmt.Sprintf("out/%v.png", count)
 	f, err := os.Create(buf)
 	if err != nil {
 		log.Fatal(err)
 	} else {
-		err = png.Encode(f, offscreen)
+		err = png.Encode(f, nb)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -208,7 +203,7 @@ func init() {
 		go func(i int) {
 			defer swg.Done()
 
-			palette[i] = byte(math.Pow(float64(i)/float64(maxIters+1), gamma) * float64(0xff))
+			palette[i] = uint16(math.Pow(float64(i)/float64(maxIters+1), gamma) * float64(0xffff))
 			//buf := fmt.Sprintf("%d, ", palette[i])
 			//fmt.Print(buf)
 		}(i)
