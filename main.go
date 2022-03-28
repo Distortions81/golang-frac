@@ -164,8 +164,13 @@ func updateOffscreen(centerX, centerY, size float64) {
 	buf := fmt.Sprintf("out/%v.png", count)
 	f, err := os.Create(buf)
 	if err != nil {
-		defer f.Close()
-		png.Encode(f, offscreen)
+		log.Fatal(err)
+	} else {
+		err = png.Encode(f, offscreen)
+		if err != nil {
+			log.Fatal(err)
+		}
+		f.Close()
 	}
 
 }
