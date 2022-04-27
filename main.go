@@ -16,16 +16,16 @@ import (
 )
 
 const (
-	autoZoom    = false
-	startOffset = 900
-	superSample = 1
+	autoZoom    = true
+	startOffset = 9700
+	superSample = 2
 	winWidth    = 512
 	winHeight   = 512
-	maxIters    = 10000
-	offX        = -0.77568377
-	offY        = 0.13646737
+	maxIters    = 256
+	offX        = -0.3663629834227643
+	offY        = -0.5915337732614452
 	zoomPow     = 100
-	zoomDiv     = 900.0
+	zoomDiv     = 10000.0
 	escapeVal   = 4.0
 
 	gamma = 0.4545
@@ -86,7 +86,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op.Filter = ebiten.FilterLinear
 
 	screen.DrawImage(ebiten.NewImageFromImage(offscreen), op)
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, curZoom))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, zoomInt))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -132,8 +132,8 @@ func updateOffscreen() {
 
 	if autoZoom {
 		zoomInt = zoomInt + 1
-		sStep := float64(zoomInt) / zoomDiv
-		curZoom = curZoom + (math.Pow(sStep, zoomPow))
+		sStep := (float64(zoomInt) / zoomDiv)
+		curZoom = (math.Pow(sStep, zoomPow))
 	}
 
 	//Write the png file
