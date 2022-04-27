@@ -16,16 +16,19 @@ import (
 )
 
 const (
-	autoZoom    = true
-	startOffset = 48
-	superSample = 8
-	winWidth    = 1024
-	winHeight   = 1024
-	maxIters    = 65535
+	autoZoom    = false
+	startOffset = 900
+	superSample = 1
+	winWidth    = 512
+	winHeight   = 512
+	maxIters    = 10000
 	offX        = -0.77568377
 	offY        = 0.13646737
-	zoomSpeed   = 10
-	gamma       = 0.3
+	zoomPow     = 100
+	zoomDiv     = 900.0
+	escapeVal   = 4.0
+
+	gamma = 0.4545
 )
 
 var (
@@ -36,17 +39,42 @@ var (
 	palette    [maxIters + 1]uint16
 	numThreads = runtime.NumCPU()
 
-	curZoom  float64 = 1.0
-	zoomInt  int     = startOffset
-	frameNum uint64  = 0
+	curZoom                float64 = 1.0
+	zoomInt                int     = startOffset
+	frameNum               uint64  = 0
+	lastMouseX, lastMouseY int
+
+	camX, camY float64
+	camZoomDiv float64 = 1
+	wheelMult  int     = 1
 )
 
 type Game struct {
-	x float64
-	y float64
 }
 
 func (g *Game) Update() error {
+
+	tX, tY := ebiten.CursorPosition()
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		diffX := (tX - lastMouseX)
+		diffY := (tY - lastMouseY)
+
+		camX += ((float64(diffX) / camZoomDiv) / (float64(zoomInt) * curZoom))
+		camY += ((float64(diffY) / camZoomDiv) / (float64(zoomInt) * curZoom))
+	}
+
+	lastMouseX = tX
+	lastMouseY = tY
+
+	_, fsy := ebiten.Wheel()
+	if fsy > 0 {
+		zoomInt += wheelMult
+	} else if fsy < 0 {
+		zoomInt -= wheelMult
+	}
+
+	sStep := float64(zoomInt) / zoomDiv
+	curZoom = (math.Pow(sStep, zoomPow))
 	return nil
 }
 
@@ -58,7 +86,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op.Filter = ebiten.FilterLinear
 
 	screen.DrawImage(ebiten.NewImageFromImage(offscreen), op)
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, z: %0.2f", ebiten.CurrentFPS(), ebiten.CurrentTPS(), curZoom))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, curZoom))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -84,14 +112,14 @@ func updateOffscreen() {
 		go func(j int) {
 			defer swg.Done()
 			for i := 0; i < renderWidth; i++ {
-				x := (float64(j)/float64(renderHeight)-0.5)/curZoom*3.0 + offX
-				y := (float64(i)/float64(renderHeight)-0.5)/curZoom*3.0 + offY
+				x := ((float64(j)/float64(renderHeight) - 0.5) / curZoom) - camX
+				y := ((float64(i)/float64(renderHeight) - 0.5) / curZoom) - camY
 				c := complex(x, y) //Rotate
 				z := complex(0, 0)
 				var it uint16
 				for ; it < maxIters; it++ {
 					z = z*z + c
-					if real(z)*real(z)+imag(z)*imag(z) > 4 {
+					if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
 						break
 					}
 				}
@@ -104,12 +132,12 @@ func updateOffscreen() {
 
 	if autoZoom {
 		zoomInt = zoomInt + 1
-		sStep := float64(zoomInt) / 1000.0
-		curZoom = curZoom + (sStep * sStep * float64(zoomSpeed))
+		sStep := float64(zoomInt) / zoomDiv
+		curZoom = curZoom + (math.Pow(sStep, zoomPow))
 	}
 
 	//Write the png file
-	fileName := fmt.Sprintf("out/%v.tif", frameNum)
+	fileName := fmt.Sprintf("out/%v.tif", zoomInt)
 	output, err := os.Create(fileName)
 	opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
 	if tiff.Encode(output, offscreen, opt) != nil {
@@ -123,6 +151,10 @@ func updateOffscreen() {
 }
 
 func init() {
+
+	camX = offX
+	camY = offY
+
 	buf := fmt.Sprintf("Threads found: %v", numThreads)
 	fmt.Println(buf)
 	if numThreads < 1 {
