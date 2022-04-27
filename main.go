@@ -16,14 +16,14 @@ import (
 )
 
 const (
-	autoZoom    = true
+	autoZoom    = false
 	startOffset = 970
-	superSample = 1
-	winWidth    = 512
-	winHeight   = 512
+	superSample = 0.5
+	winWidth    = 960
+	winHeight   = 540
 	maxIters    = 1024
-	offX        = -0.3663629834227643
-	offY        = -0.5915337732614452
+	offX        = 0.747926709975882
+	offY        = -0.10785035275635992
 	zoomPow     = 100
 	zoomDiv     = 1000.0
 	escapeVal   = 4.0
@@ -107,13 +107,13 @@ func main() {
 func updateOffscreen() {
 
 	swg := sizedwaitgroup.New(numThreads)
-	for j := 0; j < renderHeight; j++ {
+	for j := 0; j < renderWidth; j++ {
 		swg.Add()
 		go func(j int) {
 			defer swg.Done()
-			for i := 0; i < renderWidth; i++ {
-				x := ((float64(j)/float64(renderHeight) - 0.5) / curZoom) - camX
-				y := ((float64(i)/float64(renderHeight) - 0.5) / curZoom) - camY
+			for i := 0; i < renderHeight; i++ {
+				x := ((float64(j)/float64(renderWidth) - 0.5) / curZoom) - camX
+				y := ((float64(i)/float64(renderWidth) - 0.3) / curZoom) - camY
 				c := complex(x, y) //Rotate
 				z := complex(0, 0)
 				var it uint16
@@ -137,14 +137,16 @@ func updateOffscreen() {
 	}
 
 	//Write the png file
-	fileName := fmt.Sprintf("out/%v.tif", zoomInt)
-	output, err := os.Create(fileName)
-	opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-	if tiff.Encode(output, offscreen, opt) != nil {
-		log.Println("ERROR: Failed to write image:", err)
-		os.Exit(1)
+	if autoZoom {
+		fileName := fmt.Sprintf("out/%v.tif", zoomInt)
+		output, err := os.Create(fileName)
+		opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+		if tiff.Encode(output, offscreen, opt) != nil {
+			log.Println("ERROR: Failed to write image:", err)
+			os.Exit(1)
+		}
+		output.Close()
 	}
-	output.Close()
 
 	frameNum++
 
