@@ -16,14 +16,14 @@ import (
 const (
 	autoZoom    = true
 	startOffset = 48
-	superSample = 1
+	superSample = 4
 	winWidth    = 1024
 	winHeight   = 1024
 	maxIters    = 1024
 	offX        = -0.77568377
 	offY        = 0.13646737
 	zoomSpeed   = 10
-	gamma       = 0.5
+	gamma       = 0.4
 )
 
 var (
@@ -55,7 +55,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op.GeoM.Scale(1.0/superSample, 1.0/superSample)
 	op.Filter = ebiten.FilterLinear
 
-	screen.DrawImage(ebiten.NewImageFromImage(offscreen), nil)
+	screen.DrawImage(ebiten.NewImageFromImage(offscreen), op)
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, z: %0.2f", ebiten.CurrentFPS(), ebiten.CurrentTPS(), curZoom))
 }
 
