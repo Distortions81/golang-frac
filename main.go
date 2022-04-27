@@ -6,37 +6,39 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"os"
 	"runtime"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/remeh/sizedwaitgroup"
+	"golang.org/x/image/tiff"
 )
 
 const (
 	autoZoom    = true
 	startOffset = 48
-	superSample = 4
+	superSample = 8
 	winWidth    = 1024
 	winHeight   = 1024
-	maxIters    = 1024
+	maxIters    = 65535
 	offX        = -0.77568377
 	offY        = 0.13646737
 	zoomSpeed   = 10
-	gamma       = 0.4
+	gamma       = 0.3
 )
 
 var (
 	renderWidth  int = winWidth * superSample
 	renderHeight int = winHeight * superSample
 
-	offscreen  *image.Gray
-	palette    [maxIters + 1]uint8
+	offscreen  *image.Gray16
+	palette    [maxIters + 1]uint16
 	numThreads = runtime.NumCPU()
-	count      uint64
 
-	curZoom float64 = 1.0
-	zoomInt int     = startOffset
+	curZoom  float64 = 1.0
+	zoomInt  int     = startOffset
+	frameNum uint64  = 0
 )
 
 type Game struct {
@@ -75,7 +77,6 @@ func main() {
 }
 
 func updateOffscreen() {
-	count++
 
 	swg := sizedwaitgroup.New(numThreads)
 	for j := 0; j < renderHeight; j++ {
@@ -94,7 +95,7 @@ func updateOffscreen() {
 						break
 					}
 				}
-				offscreen.Set(j, i, color.Gray{palette[it]})
+				offscreen.Set(j, i, color.Gray16{palette[it]})
 			}
 
 		}(j)
@@ -106,6 +107,19 @@ func updateOffscreen() {
 		sStep := float64(zoomInt) / 1000.0
 		curZoom = curZoom + (sStep * sStep * float64(zoomSpeed))
 	}
+
+	//Write the png file
+	fileName := fmt.Sprintf("out/%v.tif", frameNum)
+	output, err := os.Create(fileName)
+	opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+	if tiff.Encode(output, offscreen, opt) != nil {
+		log.Println("ERROR: Failed to write image:", err)
+		os.Exit(1)
+	}
+	output.Close()
+
+	frameNum++
+
 }
 
 func init() {
@@ -127,7 +141,7 @@ func init() {
 		fmt.Println("renderHeight > 32768, truncating...")
 	}
 
-	offscreen = image.NewGray(image.Rect(0, 0, renderWidth, renderHeight))
+	offscreen = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
 
 	fmt.Printf("complete!\n")
 
@@ -138,7 +152,7 @@ func init() {
 		go func(i int) {
 			defer swg.Done()
 
-			palette[i] = uint8(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xff))
+			palette[i] = uint16(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xffff))
 		}(i)
 	}
 
