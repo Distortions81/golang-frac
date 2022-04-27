@@ -17,15 +17,15 @@ import (
 
 const (
 	autoZoom    = true
-	startOffset = 9700
-	superSample = 2
+	startOffset = 970
+	superSample = 1
 	winWidth    = 512
 	winHeight   = 512
-	maxIters    = 256
+	maxIters    = 1024
 	offX        = -0.3663629834227643
 	offY        = -0.5915337732614452
 	zoomPow     = 100
-	zoomDiv     = 10000.0
+	zoomDiv     = 1000.0
 	escapeVal   = 4.0
 
 	gamma = 0.4545
