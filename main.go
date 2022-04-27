@@ -21,12 +21,12 @@ const (
 	superSample = 1
 	winWidth    = 1024
 	winHeight   = 1024
-	maxIters    = 255
+	maxIters    = 1024
 	offX        = -0.77568377
 	offY        = 0.13646737
 	zoomSpeed   = 10
 	wheelSpeed  = 0.05
-	gamma       = 0.45 // 2.2
+	gamma       = 0.5
 )
 
 var (
@@ -80,14 +80,6 @@ func main() {
 	}
 }
 
-func lut(it uint8) (c uint8) {
-	if it >= maxIters {
-		return 0xff
-	}
-
-	return palette[it]
-}
-
 func updateOffscreen() {
 	count++
 
@@ -101,7 +93,7 @@ func updateOffscreen() {
 				y := (float64(i)/float64(renderHeight)-0.5)/curZoom*3.0 + offY
 				c := complex(x, y) //Rotate
 				z := complex(0, 0)
-				var it uint8
+				var it uint16
 				for ; it < maxIters; it++ {
 					z = z*z + c
 					if real(z)*real(z)+imag(z)*imag(z) > 4 {
