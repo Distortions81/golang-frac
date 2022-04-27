@@ -6,9 +6,7 @@ import (
 	"image/color"
 	"log"
 	"math"
-	"math/rand"
 	"runtime"
-	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -25,7 +23,6 @@ const (
 	offX        = -0.77568377
 	offY        = 0.13646737
 	zoomSpeed   = 10
-	wheelSpeed  = 0.05
 	gamma       = 0.5
 )
 
@@ -40,9 +37,6 @@ var (
 
 	curZoom float64 = 1.0
 	zoomInt int     = startOffset
-
-	drew     bool
-	rendered bool = false
 )
 
 type Game struct {
@@ -62,7 +56,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op.Filter = ebiten.FilterLinear
 
 	screen.DrawImage(ebiten.NewImageFromImage(offscreen), nil)
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, as: %d, z: %0.2f, w: %0.2f, t: %d", ebiten.CurrentFPS(), ebiten.CurrentTPS(), zoomInt-startOffset, curZoom, g.y, numThreads))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, z: %0.2f", ebiten.CurrentFPS(), ebiten.CurrentTPS(), curZoom))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -115,12 +109,10 @@ func updateOffscreen() {
 }
 
 func init() {
-
-	rand.Seed(time.Now().UnixNano())
 	buf := fmt.Sprintf("Threads found: %v", numThreads)
 	fmt.Println(buf)
-	if numThreads < 4 {
-		numThreads = 2
+	if numThreads < 1 {
+		numThreads = 1
 	}
 
 	fmt.Println("Allocating image...")
