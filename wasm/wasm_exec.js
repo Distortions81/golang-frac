@@ -13,24 +13,24 @@
 	// - Parcel
 	// - Webpack
 
-	if (typeof global !== "undefined") {
-		// global already exists
+	if (typeof stateal !== "undefined") {
+		// stateal already exists
 	} else if (typeof window !== "undefined") {
-		window.global = window;
+		window.stateal = window;
 	} else if (typeof self !== "undefined") {
-		self.global = self;
+		self.stateal = self;
 	} else {
-		throw new Error("cannot export Go (neither global, window nor self is defined)");
+		throw new Error("cannot export Go (neither stateal, window nor self is defined)");
 	}
 
-	if (!global.require && typeof require !== "undefined") {
-		global.require = require;
+	if (!stateal.require && typeof require !== "undefined") {
+		stateal.require = require;
 	}
 
-	if (!global.fs && global.require) {
+	if (!stateal.fs && stateal.require) {
 		const fs = require("fs");
 		if (typeof fs === "object" && fs !== null && Object.keys(fs).length !== 0) {
-			global.fs = fs;
+			stateal.fs = fs;
 		}
 	}
 
@@ -40,9 +40,9 @@
 		return err;
 	};
 
-	if (!global.fs) {
+	if (!stateal.fs) {
 		let outputBuf = "";
-		global.fs = {
+		stateal.fs = {
 			constants: { O_WRONLY: -1, O_RDWR: -1, O_CREAT: -1, O_TRUNC: -1, O_APPEND: -1, O_EXCL: -1 }, // unused
 			writeSync(fd, buf) {
 				outputBuf += decoder.decode(buf);
@@ -87,8 +87,8 @@
 		};
 	}
 
-	if (!global.process) {
-		global.process = {
+	if (!stateal.process) {
+		stateal.process = {
 			getuid() { return -1; },
 			getgid() { return -1; },
 			geteuid() { return -1; },
@@ -102,20 +102,20 @@
 		}
 	}
 
-	if (!global.crypto && global.require) {
+	if (!stateal.crypto && stateal.require) {
 		const nodeCrypto = require("crypto");
-		global.crypto = {
+		stateal.crypto = {
 			getRandomValues(b) {
 				nodeCrypto.randomFillSync(b);
 			},
 		};
 	}
-	if (!global.crypto) {
-		throw new Error("global.crypto is not available, polyfill required (getRandomValues only)");
+	if (!stateal.crypto) {
+		throw new Error("stateal.crypto is not available, polyfill required (getRandomValues only)");
 	}
 
-	if (!global.performance) {
-		global.performance = {
+	if (!stateal.performance) {
+		stateal.performance = {
 			now() {
 				const [sec, nsec] = process.hrtime();
 				return sec * 1000 + nsec / 1000000;
@@ -123,18 +123,18 @@
 		};
 	}
 
-	if (!global.TextEncoder && global.require) {
-		global.TextEncoder = require("util").TextEncoder;
+	if (!stateal.TextEncoder && stateal.require) {
+		stateal.TextEncoder = require("util").TextEncoder;
 	}
-	if (!global.TextEncoder) {
-		throw new Error("global.TextEncoder is not available, polyfill required");
+	if (!stateal.TextEncoder) {
+		throw new Error("stateal.TextEncoder is not available, polyfill required");
 	}
 
-	if (!global.TextDecoder && global.require) {
-		global.TextDecoder = require("util").TextDecoder;
+	if (!stateal.TextDecoder && stateal.require) {
+		stateal.TextDecoder = require("util").TextDecoder;
 	}
-	if (!global.TextDecoder) {
-		throw new Error("global.TextDecoder is not available, polyfill required");
+	if (!stateal.TextDecoder) {
+		throw new Error("stateal.TextDecoder is not available, polyfill required");
 	}
 
 	// End of polyfills for common API.
@@ -142,7 +142,7 @@
 	const encoder = new TextEncoder("utf-8");
 	const decoder = new TextDecoder("utf-8");
 
-	global.Go = class {
+	stateal.Go = class {
 		constructor() {
 			this.argv = ["js"];
 			this.env = {};
@@ -296,8 +296,8 @@
 						setInt64(sp + 8, (timeOrigin + performance.now()) * 1000000);
 					},
 
-					// func walltime1() (sec int64, nsec int32)
-					"runtime.walltime1": (sp) => {
+					// func walltime() (sec int64, nsec int32)
+					"runtime.walltime": (sp) => {
 						sp >>>= 0;
 						const msec = (new Date).getTime();
 						setInt64(sp + 8, msec / 1000);
@@ -401,6 +401,7 @@
 							storeValue(sp + 56, result);
 							this.mem.setUint8(sp + 64, 1);
 						} catch (err) {
+							sp = this._inst.exports.getsp() >>> 0; // see comment above
 							storeValue(sp + 56, err);
 							this.mem.setUint8(sp + 64, 0);
 						}
@@ -417,6 +418,7 @@
 							storeValue(sp + 40, result);
 							this.mem.setUint8(sp + 48, 1);
 						} catch (err) {
+							sp = this._inst.exports.getsp() >>> 0; // see comment above
 							storeValue(sp + 40, err);
 							this.mem.setUint8(sp + 48, 0);
 						}
@@ -433,6 +435,7 @@
 							storeValue(sp + 40, result);
 							this.mem.setUint8(sp + 48, 1);
 						} catch (err) {
+							sp = this._inst.exports.getsp() >>> 0; // see comment above
 							storeValue(sp + 40, err);
 							this.mem.setUint8(sp + 48, 0);
 						}
@@ -514,7 +517,7 @@
 				null,
 				true,
 				false,
-				global,
+				stateal,
 				this,
 			];
 			this._goRefCounts = new Array(this._values.length).fill(Infinity); // number of references that Go has to a JS value, indexed by reference id
@@ -523,7 +526,7 @@
 				[null, 2],
 				[true, 3],
 				[false, 4],
-				[global, 5],
+				[stateal, 5],
 				[this, 6],
 			]);
 			this._idPool = [];   // unused ids that have been garbage collected
@@ -564,6 +567,13 @@
 				offset += 8;
 			});
 
+			// The linker guarantees stateal data starts from at least wasmMinDataAddr.
+			// Keep in sync with cmd/link/internal/ld/data.go:wasmMinDataAddr.
+			const wasmMinDataAddr = 4096 + 8192;
+			if (offset >= wasmMinDataAddr) {
+				throw new Error("total length of command line and environment variables exceeds limit");
+			}
+
 			this._inst.exports.run(argc, argv);
 			if (this.exited) {
 				this._resolveExitPromise();
@@ -594,11 +604,11 @@
 
 	if (
 		typeof module !== "undefined" &&
-		global.require &&
-		global.require.main === module &&
-		global.process &&
-		global.process.versions &&
-		!global.process.versions.electron
+		stateal.require &&
+		stateal.require.main === module &&
+		stateal.process &&
+		stateal.process.versions &&
+		!stateal.process.versions.electron
 	) {
 		if (process.argv.length < 3) {
 			console.error("usage: go_js_wasm_exec [wasm binary] [arguments]");

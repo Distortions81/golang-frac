@@ -16,11 +16,9 @@ import (
 const (
 	autoZoom    = false
 	startOffset = 970
-	winWidth    = 1280
-	winHeight   = 720
+	winWidth    = 1024
+	winHeight   = 1024
 	maxIters    = 255
-	offX        = 0
-	offY        = 0
 	zoomPow     = 100
 	zoomDiv     = 1000.0
 	escapeVal   = 4.0
@@ -30,8 +28,8 @@ const (
 
 var (
 	palette      [maxIters + 1]uint8
-	renderWidth  int = winWidth
-	renderHeight int = winHeight
+	renderWidth  int = winWidth / 2
+	renderHeight int = winHeight / 2
 
 	offscreen  *image.Gray
 	numThreads = runtime.NumCPU()
@@ -76,12 +74,12 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	updateOffscreen()
 
-	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
-	op.GeoM.Translate(0, 0)
-	op.GeoM.Scale(1.0, 1.0)
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(2, 2)
 	screen.DrawImage(ebiten.NewImageFromImage(offscreen), op)
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, zoomInt))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (click drag to move, wheel to zoom)", ebiten.CurrentFPS()))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -109,6 +107,12 @@ func main() {
 	offscreen = image.NewGray(image.Rect(0, 0, renderWidth, renderHeight))
 
 	fmt.Printf("complete!\n")
+
+	buf := fmt.Sprintf("Threads found: %v", numThreads)
+	fmt.Println(buf)
+	if numThreads < 1 {
+		numThreads = 1
+	}
 
 	fmt.Printf("Building gamma table...")
 	swg := sizedwaitgroup.New((numThreads))
@@ -166,19 +170,4 @@ func updateOffscreen() {
 }
 
 func init() {
-
-	camX = offX
-	camY = offY
-
-	buf := fmt.Sprintf("Threads found: %v", numThreads)
-	fmt.Println(buf)
-	if numThreads < 1 {
-		numThreads = 1
-	}
-
-	go func() {
-		for {
-			updateOffscreen()
-		}
-	}()
 }
