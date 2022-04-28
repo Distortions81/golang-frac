@@ -6,42 +6,37 @@ import (
 	"image/color"
 	"log"
 	"math"
-	"runtime"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/remeh/sizedwaitgroup"
 )
 
 const (
-	autoZoom    = false
-	startOffset = 970
+	startOffset = 985
 	winWidth    = 1024
 	winHeight   = 1024
+	pixMag      = 2
 	maxIters    = 255
 	zoomPow     = 100
 	zoomDiv     = 1000.0
 	escapeVal   = 4.0
-
-	gamma = 0.6
+	camZoomDiv  = 1
+	wheelMult   = 4
+	gamma       = 0.6
 )
 
 var (
 	palette      [maxIters + 1]uint8
-	renderWidth  int = winWidth / 2
-	renderHeight int = winHeight / 2
+	renderWidth  int = winWidth / pixMag
+	renderHeight int = winHeight / pixMag
 
-	offscreen  *image.Gray
-	numThreads = runtime.NumCPU()
+	offscreen *image.Gray
 
 	curZoom                float64 = 1.0
 	zoomInt                int     = startOffset
-	frameNum               uint64  = 0
 	lastMouseX, lastMouseY int
 
 	camX, camY float64
-	camZoomDiv float64 = 1
-	wheelMult  int     = 4
 )
 
 type Game struct {
@@ -77,7 +72,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	updateOffscreen()
 
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(2, 2)
+	op.GeoM.Scale(pixMag, pixMag)
 	screen.DrawImage(ebiten.NewImageFromImage(offscreen), op)
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (click drag to move, wheel to zoom)", ebiten.CurrentFPS()))
 }
@@ -92,41 +87,13 @@ func main() {
 	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
 	ebiten.SetFPSMode(ebiten.FPSModeVsyncOn)
 
-	fmt.Println("Allocating image...")
-
-	/* Max image size */
-	if renderWidth > 32768 {
-		renderWidth = 32768
-		fmt.Println("renderWidth > 32768, truncating...")
-	}
-	if renderHeight > 32768 {
-		renderHeight = 32768
-		fmt.Println("renderHeight > 32768, truncating...")
-	}
-
 	offscreen = image.NewGray(image.Rect(0, 0, renderWidth, renderHeight))
 
-	fmt.Printf("complete!\n")
-
-	buf := fmt.Sprintf("Threads found: %v", numThreads)
-	fmt.Println(buf)
-	if numThreads < 1 {
-		numThreads = 1
-	}
-
-	fmt.Printf("Building gamma table...")
-	swg := sizedwaitgroup.New((numThreads))
 	for i := range palette {
-		swg.Add()
-		go func(i int) {
-			defer swg.Done()
 
-			palette[i] = uint8(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xff))
-		}(i)
+		palette[i] = uint8(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xff))
+
 	}
-
-	swg.Wait()
-	fmt.Printf("complete!\n")
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
@@ -135,37 +102,25 @@ func main() {
 
 func updateOffscreen() {
 
-	swg := sizedwaitgroup.New(numThreads)
 	for j := 0; j < renderWidth; j++ {
-		swg.Add()
-		go func(j int) {
-			defer swg.Done()
-			for i := 0; i < renderHeight; i++ {
-				x := ((float64(j)/float64(renderWidth) - 0.5) / curZoom) - camX
-				y := ((float64(i)/float64(renderWidth) - 0.3) / curZoom) - camY
-				c := complex(x, y) //Rotate
-				z := complex(0, 0)
-				var it uint8
-				for it = 0; it < maxIters; it++ {
-					z = z*z + c
-					if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
-						break
-					}
-				}
 
-				offscreen.Set(j, i, color.Gray{palette[it]})
+		for i := 0; i < renderHeight; i++ {
+			x := ((float64(j)/float64(renderWidth) - 0.5) / curZoom) - camX
+			y := ((float64(i)/float64(renderWidth) - 0.3) / curZoom) - camY
+			c := complex(x, y) //Rotate
+			z := complex(0, 0)
+			var it uint8
+			for it = 0; it < maxIters; it++ {
+				z = z*z + c
+				if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+					break
+				}
 			}
 
-		}(j)
-	}
-	swg.Wait()
+			offscreen.Set(j, i, color.Gray{palette[it]})
+		}
 
-	if autoZoom {
-		zoomInt = zoomInt + 1
-		sStep := (float64(zoomInt) / zoomDiv)
-		curZoom = (math.Pow(sStep, zoomPow))
 	}
-	frameNum++
 
 }
 
