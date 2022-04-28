@@ -154,7 +154,7 @@ func updateOffscreen() {
 	}
 	swg.Wait()
 
-	//Used for display
+	//Used for display, replace pixes is faster but we need the resizing and filtering here
 	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
 	op.GeoM.Scale(1.0/superSample, 1.0/superSample)
 	downresChroma.DrawImage(ebiten.NewImageFromImage(offscreen), op)
