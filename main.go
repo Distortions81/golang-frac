@@ -17,6 +17,8 @@ import (
 )
 
 const (
+	chromaMode    = true
+	lumaMode      = true
 	autoZoom      = true
 	startOffset   = 970
 	superSample   = 4
@@ -38,9 +40,12 @@ var (
 	renderWidth  int = winWidth * superSample
 	renderHeight int = winHeight * superSample
 
-	offscreen  *image.RGBA
-	downres    *ebiten.Image
-	numThreads = runtime.NumCPU()
+	offscreen     *image.RGBA
+	offscreenGray *image.Gray16
+
+	downresChroma *ebiten.Image
+	downresLuma   *ebiten.Image
+	numThreads    = runtime.NumCPU()
 
 	curZoom                float64 = 1.0
 	zoomInt                int     = startOffset
@@ -86,7 +91,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
 	op.GeoM.Translate(0, 0)
 	op.GeoM.Scale(1.0/windowDivisor, 1.0/windowDivisor)
-	screen.DrawImage(downres, op)
+	screen.DrawImage(downresChroma, op)
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, zoomInt))
 }
 
@@ -124,8 +129,13 @@ func updateOffscreen() {
 						break
 					}
 				}
-				r, g, b := colorutil.HsvToRgb(float64(it)/float64(maxIters)*360.0, 1.0, 1.0)
-				offscreen.Set(j, i, color.RGBA{r, g, b, 255})
+				if chromaMode {
+					r, g, b := colorutil.HsvToRgb(float64(it)/float64(maxIters)*360.0, 1.0, 1.0)
+					offscreen.Set(j, i, color.RGBA{r, g, b, 255})
+				}
+				if lumaMode {
+					offscreenGray.Set(j, i, color.Gray16{it})
+				}
 			}
 
 		}(j)
@@ -142,15 +152,30 @@ func updateOffscreen() {
 	if autoZoom {
 		op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
 		op.GeoM.Scale(1.0/superSample, 1.0/superSample)
-		downres.DrawImage(ebiten.NewImageFromImage(offscreen), op)
-		fileName := fmt.Sprintf("out/%v.tif", zoomInt)
-		output, err := os.Create(fileName)
-		opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-		if tiff.Encode(output, downres, opt) != nil {
-			log.Println("ERROR: Failed to write image:", err)
-			os.Exit(1)
+		if chromaMode {
+			downresChroma.DrawImage(ebiten.NewImageFromImage(offscreen), op)
+
+			fileName := fmt.Sprintf("out/color-%v.tif", zoomInt)
+			output, err := os.Create(fileName)
+			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+			if tiff.Encode(output, downresChroma, opt) != nil {
+				log.Println("ERROR: Failed to write image:", err)
+				os.Exit(1)
+			}
+			output.Close()
 		}
-		output.Close()
+		if lumaMode {
+			downresLuma.DrawImage(ebiten.NewImageFromImage(offscreenGray), op)
+
+			fileName := fmt.Sprintf("out/luma-%v.tif", zoomInt)
+			output, err := os.Create(fileName)
+			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+			if tiff.Encode(output, downresLuma, opt) != nil {
+				log.Println("ERROR: Failed to write image:", err)
+				os.Exit(1)
+			}
+			output.Close()
+		}
 	}
 
 	frameNum++
@@ -181,7 +206,9 @@ func init() {
 	}
 
 	offscreen = image.NewRGBA(image.Rect(0, 0, renderWidth, renderHeight))
-	downres = ebiten.NewImage(renderWidth/superSample, renderHeight/superSample)
+	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
+	downresChroma = ebiten.NewImage(renderWidth/superSample, renderHeight/superSample)
+	downresLuma = ebiten.NewImage(renderWidth/superSample, renderHeight/superSample)
 
 	fmt.Printf("complete!\n")
 
