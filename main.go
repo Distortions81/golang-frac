@@ -38,6 +38,7 @@ var (
 	camX, camY float64
 
 	minBright uint8 = 0xff
+	maxBright uint8 = 0x00
 )
 
 type Game struct {
@@ -101,6 +102,7 @@ func main() {
 
 func updateOffscreen() {
 	minBright = 0xff
+	maxBright = 0x00
 
 	for j := 0; j < renderWidth; j++ {
 
@@ -119,9 +121,19 @@ func updateOffscreen() {
 			if palette[it] < minBright {
 				minBright = palette[it]
 			}
+			if palette[it] > maxBright {
+				maxBright = palette[it]
+			}
 			offscreen.Set(j, i, color.RGBA{palette[it], palette[it], palette[it], 0xff})
 		}
 
+	}
+
+	if minBright > 220 {
+		minBright = 220
+	}
+	if maxBright < 225 {
+		maxBright = 225
 	}
 
 	/*Auto contrast*/
@@ -130,11 +142,11 @@ func updateOffscreen() {
 			for i := 0; i < renderHeight; i++ {
 				pixel := offscreen.At(j, i)
 				r, _, _, _ := pixel.RGBA()
-				v := uint8(r >> 8)
-				dim := v - minBright
+				v := uint8(r >> 8)   //Bitshift
+				dim := v - minBright //Subtract so black is black
 				if dim > 0 {
-					out := uint8(float64(dim) / (float64(255-minBright) / 255.0))
-					//fmt.Println(minBright, v, dim, out)
+					//Increase constast
+					out := uint8(float64(dim) / (float64(255-minBright-(255-maxBright)) / 255.0))
 					offscreen.Set(j, i, color.RGBA{out, out, out, 0xff})
 				} else {
 					offscreen.Set(j, i, color.RGBA{0, 0, 0, 0xff})
@@ -142,6 +154,7 @@ func updateOffscreen() {
 			}
 		}
 	}
+	fmt.Println(minBright, maxBright)
 }
 
 func init() {
