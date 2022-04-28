@@ -6,46 +6,35 @@ import (
 	"image/color"
 	"log"
 	"math"
-	"os"
 	"runtime"
 
-	"github.com/PerformLine/go-stockutil/colorutil"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/remeh/sizedwaitgroup"
-	"golang.org/x/image/tiff"
 )
 
 const (
-	chromaMode    = true
-	lumaMode      = true
-	autoZoom      = true
-	startOffset   = 970 * 8
-	superSample   = 4
-	windowDivisor = 4.0
-	winWidth      = 3840
-	winHeight     = 2160
-	maxIters      = 10000
-	offX          = 0.747926709975882
-	offY          = -0.10785035275635992
-	zoomPow       = 100
-	zoomDiv       = 1000.0 * 8
-	escapeVal     = 4.0
+	autoZoom    = false
+	startOffset = 970
+	winWidth    = 1280
+	winHeight   = 720
+	maxIters    = 255
+	offX        = 0
+	offY        = 0
+	zoomPow     = 100
+	zoomDiv     = 1000.0
+	escapeVal   = 4.0
 
-	gamma = 0.4545
+	gamma = 0.6
 )
 
 var (
-	palette      [maxIters + 1]uint16
-	renderWidth  int = winWidth * superSample
-	renderHeight int = winHeight * superSample
+	palette      [maxIters + 1]uint8
+	renderWidth  int = winWidth
+	renderHeight int = winHeight
 
-	offscreen     *image.RGBA
-	offscreenGray *image.Gray16
-
-	downresChroma *ebiten.Image
-	downresLuma   *ebiten.Image
-	numThreads    = runtime.NumCPU()
+	offscreen  *image.Gray
+	numThreads = runtime.NumCPU()
 
 	curZoom                float64 = 1.0
 	zoomInt                int     = startOffset
@@ -54,7 +43,7 @@ var (
 
 	camX, camY float64
 	camZoomDiv float64 = 1
-	wheelMult  int     = 1
+	wheelMult  int     = 4
 )
 
 type Game struct {
@@ -90,8 +79,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
 	op.GeoM.Translate(0, 0)
-	op.GeoM.Scale(1.0/windowDivisor, 1.0/windowDivisor)
-	screen.DrawImage(downresChroma, op)
+	op.GeoM.Scale(1.0, 1.0)
+	screen.DrawImage(ebiten.NewImageFromImage(offscreen), op)
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, zoomInt))
 }
 
@@ -100,10 +89,40 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
-	ebiten.SetWindowSize(winWidth/windowDivisor, winHeight/windowDivisor)
+	ebiten.SetWindowSize(winWidth, winHeight)
+	ebiten.SetWindowResizable(false)
 	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
 	ebiten.SetFPSMode(ebiten.FPSModeVsyncOn)
-	ebiten.SetMaxTPS(30)
+
+	fmt.Println("Allocating image...")
+
+	/* Max image size */
+	if renderWidth > 32768 {
+		renderWidth = 32768
+		fmt.Println("renderWidth > 32768, truncating...")
+	}
+	if renderHeight > 32768 {
+		renderHeight = 32768
+		fmt.Println("renderHeight > 32768, truncating...")
+	}
+
+	offscreen = image.NewGray(image.Rect(0, 0, renderWidth, renderHeight))
+
+	fmt.Printf("complete!\n")
+
+	fmt.Printf("Building gamma table...")
+	swg := sizedwaitgroup.New((numThreads))
+	for i := range palette {
+		swg.Add()
+		go func(i int) {
+			defer swg.Done()
+
+			palette[i] = uint8(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xff))
+		}(i)
+	}
+
+	swg.Wait()
+	fmt.Printf("complete!\n")
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
@@ -122,20 +141,15 @@ func updateOffscreen() {
 				y := ((float64(i)/float64(renderWidth) - 0.3) / curZoom) - camY
 				c := complex(x, y) //Rotate
 				z := complex(0, 0)
-				var it uint16
+				var it uint8
 				for it = 0; it < maxIters; it++ {
 					z = z*z + c
 					if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
 						break
 					}
 				}
-				if chromaMode {
-					r, g, b := colorutil.HsvToRgb(float64(it)/float64(maxIters)*360.0, 1.0, 1.0)
-					offscreen.Set(j, i, color.RGBA{r, g, b, 255})
-				}
-				if lumaMode {
-					offscreenGray.Set(j, i, color.Gray16{palette[it]})
-				}
+
+				offscreen.Set(j, i, color.Gray{palette[it]})
 			}
 
 		}(j)
@@ -147,37 +161,6 @@ func updateOffscreen() {
 		sStep := (float64(zoomInt) / zoomDiv)
 		curZoom = (math.Pow(sStep, zoomPow))
 	}
-
-	//Write the png file
-	if autoZoom {
-		op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
-		op.GeoM.Scale(1.0/superSample, 1.0/superSample)
-		if chromaMode {
-			downresChroma.DrawImage(ebiten.NewImageFromImage(offscreen), op)
-
-			fileName := fmt.Sprintf("out/color-%v.tif", zoomInt)
-			output, err := os.Create(fileName)
-			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-			if tiff.Encode(output, downresChroma, opt) != nil {
-				log.Println("ERROR: Failed to write image:", err)
-				os.Exit(1)
-			}
-			output.Close()
-		}
-		if lumaMode {
-			downresLuma.DrawImage(ebiten.NewImageFromImage(offscreenGray), op)
-
-			fileName := fmt.Sprintf("out/luma-%v.tif", zoomInt)
-			output, err := os.Create(fileName)
-			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-			if tiff.Encode(output, downresLuma, opt) != nil {
-				log.Println("ERROR: Failed to write image:", err)
-				os.Exit(1)
-			}
-			output.Close()
-		}
-	}
-
 	frameNum++
 
 }
@@ -192,39 +175,6 @@ func init() {
 	if numThreads < 1 {
 		numThreads = 1
 	}
-
-	fmt.Println("Allocating image...")
-
-	/* Max image size */
-	if renderWidth > 32768 {
-		renderWidth = 32768
-		fmt.Println("renderWidth > 32768, truncating...")
-	}
-	if renderHeight > 32768 {
-		renderHeight = 32768
-		fmt.Println("renderHeight > 32768, truncating...")
-	}
-
-	offscreen = image.NewRGBA(image.Rect(0, 0, renderWidth, renderHeight))
-	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
-	downresChroma = ebiten.NewImage(renderWidth/superSample, renderHeight/superSample)
-	downresLuma = ebiten.NewImage(renderWidth/superSample, renderHeight/superSample)
-
-	fmt.Printf("complete!\n")
-
-	fmt.Printf("Building gamma table...")
-	swg := sizedwaitgroup.New((numThreads))
-	for i := range palette {
-		swg.Add()
-		go func(i int) {
-			defer swg.Done()
-
-			palette[i] = uint16(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xffff))
-		}(i)
-	}
-
-	swg.Wait()
-	fmt.Printf("complete!\n")
 
 	go func() {
 		for {
