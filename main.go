@@ -37,6 +37,7 @@ const (
 )
 
 var (
+	palette      [maxIters + 1]uint16
 	renderWidth  int = winWidth * superSample
 	renderHeight int = winHeight * superSample
 
@@ -134,7 +135,7 @@ func updateOffscreen() {
 					offscreen.Set(j, i, color.RGBA{r, g, b, 255})
 				}
 				if lumaMode {
-					offscreenGray.Set(j, i, color.Gray16{it})
+					offscreenGray.Set(j, i, color.Gray16{palette[it]})
 				}
 			}
 
@@ -210,6 +211,20 @@ func init() {
 	downresChroma = ebiten.NewImage(renderWidth/superSample, renderHeight/superSample)
 	downresLuma = ebiten.NewImage(renderWidth/superSample, renderHeight/superSample)
 
+	fmt.Printf("complete!\n")
+
+	fmt.Printf("Building gamma table...")
+	swg := sizedwaitgroup.New((numThreads))
+	for i := range palette {
+		swg.Add()
+		go func(i int) {
+			defer swg.Done()
+
+			palette[i] = uint16(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xffff))
+		}(i)
+	}
+
+	swg.Wait()
 	fmt.Printf("complete!\n")
 
 	go func() {
