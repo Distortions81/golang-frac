@@ -129,11 +129,11 @@ func updateOffscreen() {
 
 	}
 
-	if minBright > 220 {
-		minBright = 220
+	if minBright > 200 {
+		minBright = 200
 	}
-	if maxBright < 225 {
-		maxBright = 225
+	if maxBright < 201 {
+		maxBright = 201
 	}
 
 	/*Auto contrast*/
@@ -154,7 +154,6 @@ func updateOffscreen() {
 			}
 		}
 	}
-	fmt.Println(minBright, maxBright)
 }
 
 func init() {
