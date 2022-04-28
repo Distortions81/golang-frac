@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image"
 	"image/color"
 	"log"
 	"math"
@@ -30,13 +29,15 @@ var (
 	renderWidth  int = winWidth / pixMag
 	renderHeight int = winHeight / pixMag
 
-	offscreen *image.Gray
+	offscreen *ebiten.Image
 
 	curZoom                float64 = 1.0
 	zoomInt                int     = startOffset
 	lastMouseX, lastMouseY int
 
 	camX, camY float64
+
+	minBright uint8 = 0xff
 )
 
 type Game struct {
@@ -73,7 +74,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(pixMag, pixMag)
-	screen.DrawImage(ebiten.NewImageFromImage(offscreen), op)
+	screen.DrawImage(offscreen, op)
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (click drag to move, wheel to zoom)", ebiten.CurrentFPS()))
 }
 
@@ -87,12 +88,10 @@ func main() {
 	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
 	ebiten.SetFPSMode(ebiten.FPSModeVsyncOn)
 
-	offscreen = image.NewGray(image.Rect(0, 0, renderWidth, renderHeight))
+	offscreen = ebiten.NewImage(renderWidth, renderHeight)
 
 	for i := range palette {
-
 		palette[i] = uint8(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xff))
-
 	}
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
@@ -101,6 +100,7 @@ func main() {
 }
 
 func updateOffscreen() {
+	minBright = 0xff
 
 	for j := 0; j < renderWidth; j++ {
 
@@ -116,13 +116,34 @@ func updateOffscreen() {
 					break
 				}
 			}
-
-			offscreen.Set(j, i, color.Gray{palette[it]})
+			if palette[it] < minBright {
+				minBright = palette[it]
+			}
+			offscreen.Set(j, i, color.RGBA{palette[it], palette[it], palette[it], 0xff})
 		}
 
 	}
 
+	/*Auto contrast*/
+	if minBright < 255 && minBright > 0 {
+		for j := 0; j < renderWidth; j++ {
+			for i := 0; i < renderHeight; i++ {
+				pixel := offscreen.At(j, i)
+				r, _, _, _ := pixel.RGBA()
+				v := uint8(r >> 8)
+				dim := v - minBright
+				if dim > 0 {
+					out := uint8(float64(dim) / (float64(255-minBright) / 255.0))
+					//fmt.Println(minBright, v, dim, out)
+					offscreen.Set(j, i, color.RGBA{out, out, out, 0xff})
+				} else {
+					offscreen.Set(j, i, color.RGBA{0, 0, 0, 0xff})
+				}
+			}
+		}
+	}
 }
 
 func init() {
+	//
 }
