@@ -106,7 +106,7 @@ func updateOffscreen() {
 
 		for i := 0; i < renderHeight; i++ {
 			x := ((float64(j)/float64(renderWidth) - 0.5) / curZoom) - camX
-			y := ((float64(i)/float64(renderWidth) - 0.3) / curZoom) - camY
+			y := ((float64(i)/float64(renderWidth) - 0.5) / curZoom) - camY
 			c := complex(x, y) //Rotate
 			z := complex(0, 0)
 			var it uint8
