@@ -13,3 +13,4 @@
  
  OS X: Not yet tested, probably just needs golang.
  
+ Forked from: https://ebiten.org/examples/mandelbrot.html
