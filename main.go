@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/PerformLine/go-stockutil/colorutil"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/remeh/sizedwaitgroup"
@@ -16,17 +17,19 @@ import (
 )
 
 const (
-	autoZoom    = false
-	startOffset = 970
-	superSample = 0.5
-	winWidth    = 960
-	winHeight   = 540
-	maxIters    = 1024
-	offX        = 0.747926709975882
-	offY        = -0.10785035275635992
-	zoomPow     = 100
-	zoomDiv     = 1000.0
-	escapeVal   = 4.0
+	autoZoom      = true
+	startOffset   = 970
+	superSample   = 4
+	windowDivisor = 4.0
+	winWidth      = 3840
+	winHeight     = 2160
+	maxIters      = 360
+	offX          = 0.747926709975882
+	offY          = -0.10785035275635992
+	zoomPow       = 100
+	zoomDiv       = 1000.0
+	escapeVal     = 4.0
+	colorRots     = 10
 
 	gamma = 0.4545
 )
@@ -35,8 +38,8 @@ var (
 	renderWidth  int = winWidth * superSample
 	renderHeight int = winHeight * superSample
 
-	offscreen  *image.Gray16
-	palette    [maxIters + 1]uint16
+	offscreen  *image.RGBA
+	downres    *ebiten.Image
 	numThreads = runtime.NumCPU()
 
 	curZoom                float64 = 1.0
@@ -80,24 +83,22 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Reset()
-	op.GeoM.Scale(1.0/superSample, 1.0/superSample)
-	op.Filter = ebiten.FilterLinear
-
-	screen.DrawImage(ebiten.NewImageFromImage(offscreen), op)
+	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
+	op.GeoM.Translate(0, 0)
+	op.GeoM.Scale(1.0/windowDivisor, 1.0/windowDivisor)
+	screen.DrawImage(downres, op)
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, zoomInt))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return winWidth, winHeight
+	return outsideWidth, outsideHeight
 }
 
 func main() {
-	ebiten.SetWindowSize(winWidth, winHeight)
+	ebiten.SetWindowSize(winWidth/windowDivisor, winHeight/windowDivisor)
 	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
 	ebiten.SetFPSMode(ebiten.FPSModeVsyncOn)
-	ebiten.SetMaxTPS(60)
+	ebiten.SetMaxTPS(30)
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
@@ -117,13 +118,14 @@ func updateOffscreen() {
 				c := complex(x, y) //Rotate
 				z := complex(0, 0)
 				var it uint16
-				for ; it < maxIters; it++ {
+				for it = 0; it < maxIters; it++ {
 					z = z*z + c
 					if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
 						break
 					}
 				}
-				offscreen.Set(j, i, color.Gray16{palette[it]})
+				r, g, b := colorutil.HsvToRgb(float64(it)/float64(maxIters)*360.0, 1.0, 1.0)
+				offscreen.Set(j, i, color.RGBA{r, g, b, 255})
 			}
 
 		}(j)
@@ -138,10 +140,13 @@ func updateOffscreen() {
 
 	//Write the png file
 	if autoZoom {
+		op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
+		op.GeoM.Scale(1.0/superSample, 1.0/superSample)
+		downres.DrawImage(ebiten.NewImageFromImage(offscreen), op)
 		fileName := fmt.Sprintf("out/%v.tif", zoomInt)
 		output, err := os.Create(fileName)
 		opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-		if tiff.Encode(output, offscreen, opt) != nil {
+		if tiff.Encode(output, downres, opt) != nil {
 			log.Println("ERROR: Failed to write image:", err)
 			os.Exit(1)
 		}
@@ -175,22 +180,9 @@ func init() {
 		fmt.Println("renderHeight > 32768, truncating...")
 	}
 
-	offscreen = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
+	offscreen = image.NewRGBA(image.Rect(0, 0, renderWidth, renderHeight))
+	downres = ebiten.NewImage(renderWidth/superSample, renderHeight/superSample)
 
-	fmt.Printf("complete!\n")
-
-	fmt.Printf("Building gamma table...")
-	swg := sizedwaitgroup.New((numThreads))
-	for i := range palette {
-		swg.Add()
-		go func(i int) {
-			defer swg.Done()
-
-			palette[i] = uint16(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xffff))
-		}(i)
-	}
-
-	swg.Wait()
 	fmt.Printf("complete!\n")
 
 	go func() {
