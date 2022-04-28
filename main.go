@@ -20,18 +20,17 @@ const (
 	chromaMode    = true
 	lumaMode      = true
 	autoZoom      = true
-	startOffset   = 970
+	startOffset   = 970 * 8
 	superSample   = 4
 	windowDivisor = 4.0
 	winWidth      = 3840
 	winHeight     = 2160
-	maxIters      = 360
+	maxIters      = 10000
 	offX          = 0.747926709975882
 	offY          = -0.10785035275635992
 	zoomPow       = 100
-	zoomDiv       = 1000.0
+	zoomDiv       = 1000.0 * 8
 	escapeVal     = 4.0
-	colorRots     = 10
 
 	gamma = 0.4545
 )
