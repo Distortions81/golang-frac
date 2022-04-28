@@ -17,20 +17,21 @@ import (
 )
 
 const (
-	chromaMode    = true
-	lumaMode      = true
-	autoZoom      = true
-	startOffset   = 970 * 8
-	superSample   = 4
-	windowDivisor = 4.0
-	winWidth      = 3840
-	winHeight     = 2160
-	maxIters      = 10000
-	offX          = 0.747926709975882
-	offY          = -0.10785035275635992
-	zoomPow       = 100
-	zoomDiv       = 1000.0 * 8
-	escapeVal     = 4.0
+	chromaMode       = true
+	lumaMode         = true
+	autoZoom         = false
+	startOffset      = 985
+	superSample      = 1
+	windowDivisor    = 1.0
+	winWidth         = 512
+	winHeight        = 512
+	maxIters         = 10000
+	offX             = 0.747926709975882
+	offY             = -0.10785035275635992
+	zoomPow          = 100
+	zoomDiv          = 1000.0
+	escapeVal        = 4.0
+	colorDegPerInter = 10
 
 	gamma = 0.4545
 )
@@ -39,6 +40,9 @@ var (
 	palette      [maxIters + 1]uint16
 	renderWidth  int = winWidth * superSample
 	renderHeight int = winHeight * superSample
+
+	minBright uint16 = 0xffff
+	maxBright uint16 = 0x0000
 
 	offscreen     *image.RGBA
 	offscreenGray *image.Gray16
@@ -103,7 +107,6 @@ func main() {
 	ebiten.SetWindowSize(winWidth/windowDivisor, winHeight/windowDivisor)
 	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
 	ebiten.SetFPSMode(ebiten.FPSModeVsyncOn)
-	ebiten.SetMaxTPS(30)
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
@@ -113,13 +116,16 @@ func main() {
 func updateOffscreen() {
 
 	swg := sizedwaitgroup.New(numThreads)
+	maxBright = 0x0000
+	minBright = 0xffff
+
 	for j := 0; j < renderWidth; j++ {
 		swg.Add()
 		go func(j int) {
 			defer swg.Done()
 			for i := 0; i < renderHeight; i++ {
 				x := ((float64(j)/float64(renderWidth) - 0.5) / curZoom) - camX
-				y := ((float64(i)/float64(renderWidth) - 0.3) / curZoom) - camY
+				y := ((float64(i)/float64(renderWidth) - 0.5) / curZoom) - camY
 				c := complex(x, y) //Rotate
 				z := complex(0, 0)
 				var it uint16
@@ -130,11 +136,17 @@ func updateOffscreen() {
 					}
 				}
 				if chromaMode {
-					r, g, b := colorutil.HsvToRgb(float64(it)/float64(maxIters)*360.0, 1.0, 1.0)
+					r, g, b := colorutil.HsvToRgb(math.Mod(float64(it*colorDegPerInter), 360), 1.0, 1.0)
 					offscreen.Set(j, i, color.RGBA{r, g, b, 255})
 				}
 				if lumaMode {
 					offscreenGray.Set(j, i, color.Gray16{palette[it]})
+					if it > maxBright {
+						maxBright = it
+					}
+					if it < minBright {
+						minBright = it
+					}
 				}
 			}
 
@@ -142,18 +154,17 @@ func updateOffscreen() {
 	}
 	swg.Wait()
 
+	//Used for display
+	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
+	op.GeoM.Scale(1.0/superSample, 1.0/superSample)
+	downresChroma.DrawImage(ebiten.NewImageFromImage(offscreen), op)
+
 	if autoZoom {
 		zoomInt = zoomInt + 1
 		sStep := (float64(zoomInt) / zoomDiv)
 		curZoom = (math.Pow(sStep, zoomPow))
-	}
 
-	//Write the png file
-	if autoZoom {
-		op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
-		op.GeoM.Scale(1.0/superSample, 1.0/superSample)
 		if chromaMode {
-			downresChroma.DrawImage(ebiten.NewImageFromImage(offscreen), op)
 
 			fileName := fmt.Sprintf("out/color-%v.tif", zoomInt)
 			output, err := os.Create(fileName)
@@ -164,6 +175,40 @@ func updateOffscreen() {
 			}
 			output.Close()
 		}
+
+		/*Auto contrast*/
+		if lumaMode {
+			//Auto constrast limits
+			if minBright > 200 {
+				minBright = 200
+			}
+			if maxBright < 201 {
+				maxBright = 201
+			}
+
+			for j := 0; j < renderWidth; j++ {
+				swg.Add()
+				go func(j int) {
+					defer swg.Done()
+
+					for i := 0; i < renderHeight; i++ {
+						pixel := offscreenGray.Gray16At(j, i)
+						y := pixel.Y
+						dim := y - minBright //Subtract so black is black
+						if dim > 0 {
+							//Increase constast
+							out := uint16(float64(dim) / (float64(255-minBright-(255-maxBright)) / 255.0))
+							offscreenGray.Set(j, i, color.Gray16{out})
+						} else {
+							offscreenGray.Set(j, i, color.Gray16{0})
+						}
+					}
+
+				}(j)
+			}
+
+		}
+		swg.Wait()
 		if lumaMode {
 			downresLuma.DrawImage(ebiten.NewImageFromImage(offscreenGray), op)
 
