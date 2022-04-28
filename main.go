@@ -21,7 +21,7 @@ const (
 	escapeVal   = 4.0
 	camZoomDiv  = 1
 	wheelMult   = 4
-	gamma       = 0.6
+	gamma       = 0.454545
 )
 
 var (
@@ -142,8 +142,7 @@ func updateOffscreen() {
 			for i := 0; i < renderHeight; i++ {
 				pixel := offscreen.At(j, i)
 				r, _, _, _ := pixel.RGBA()
-				v := uint8(r >> 8)   //Bitshift
-				dim := v - minBright //Subtract so black is black
+				dim := uint8(r>>8) - minBright //Subtract so black is black
 				if dim > 0 {
 					//Increase constast
 					out := uint8(float64(dim) / (float64(255-minBright-(255-maxBright)) / 255.0))
