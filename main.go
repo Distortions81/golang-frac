@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	headlessMode     = true
 	chromaMode       = true
 	lumaMode         = true
 	autoZoom         = true
@@ -180,8 +181,14 @@ func main() {
 		}
 	}()
 
-	if err := ebiten.RunGame(&Game{}); err != nil {
-		log.Fatal(err)
+	if !headlessMode {
+		if err := ebiten.RunGame(&Game{}); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		for {
+			time.Sleep(time.Second)
+		}
 	}
 }
 
