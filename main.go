@@ -171,7 +171,6 @@ func updateOffscreen() {
 	maxBright = 0x0000
 	minBright = 0xffff
 
-	ssSr := float64(superSamples * superSamples)
 	for sx := 0; sx < superSamples; sx++ {
 		for sy := 0; sy < superSamples; sy++ {
 			for j := 0; j < renderWidth; j++ {
@@ -179,8 +178,8 @@ func updateOffscreen() {
 				go func(j int) {
 					defer swg.Done()
 					for i := 0; i < renderHeight; i++ {
-						ssx := -(ssSr / 2) + (float64(sx) / float64(ssSr))
-						ssy := -(ssSr / 2) + (float64(sy) / float64(ssSr))
+						ssx := -(superSamples / 2) + (float64(sx) / float64(superSamples))
+						ssy := -(superSamples / 2) + (float64(sy) / float64(superSamples))
 
 						x := (((float64(j)+ssx)/float64(renderWidth) - 0.5) / (curZoom)) - camX
 						y := (((float64(i)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - camY
