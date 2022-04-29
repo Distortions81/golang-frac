@@ -35,7 +35,7 @@ const (
 	escapeVal        = 4.0
 	colorDegPerInter = 10
 	flopDrawSeconds  = 10
-	doJitter         = true
+	doJitter         = false
 	fastJitter       = true
 
 	jitterDiv = superSamples //rand is 0 to 1, divide by this to get jitter
