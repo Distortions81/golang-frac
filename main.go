@@ -21,9 +21,9 @@ const (
 	lumaMode         = true
 	autoZoom         = true
 	startOffset      = 9800
-	superSamples     = 32
-	winWidth         = 3840
-	winHeight        = 2160
+	winWidth         = 960
+	winHeight        = 540
+	superSamples     = 16 //max 16 (16x16, 256 samples)
 	maxIters         = 10000
 	offX             = 0.747926709975882
 	offY             = -0.10785035275635992
@@ -32,7 +32,7 @@ const (
 	escapeVal        = 4.0
 	colorDegPerInter = 10
 
-	gamma = 0.4545
+	gamma = 0.4545454545454545
 )
 
 var (
@@ -42,7 +42,8 @@ var (
 	minBright    uint16 = 0xffff
 	maxBright    uint16 = 0x0000
 
-	offscreen     *image.RGBA
+	screenBuffer  *ebiten.Image
+	offscreen     *image.RGBA64
 	offscreenGray *image.Gray16
 
 	numThreads = runtime.NumCPU()
@@ -90,7 +91,10 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 
-	screen.ReplacePixels(offscreen.Pix)
+	screen.Clear()
+	screenBuffer = ebiten.NewImageFromImage(offscreen)
+	screen.DrawImage(screenBuffer, nil)
+	screenBuffer.Dispose()
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, zoomInt))
 }
 
@@ -124,7 +128,7 @@ func main() {
 		fmt.Println("renderHeight > 32768, truncating...")
 	}
 
-	offscreen = image.NewRGBA(image.Rect(0, 0, renderWidth, renderHeight))
+	offscreen = image.NewRGBA64(image.Rect(0, 0, renderWidth, renderHeight))
 	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
 
 	if offscreen == nil || offscreenGray == nil {
@@ -162,48 +166,66 @@ func main() {
 }
 
 func updateOffscreen() {
-
+	frameStart := true
 	swg := sizedwaitgroup.New(numThreads)
 	maxBright = 0x0000
 	minBright = 0xffff
-	for j := 0; j < renderWidth*superSamples; j++ {
-		swg.Add()
-		go func(j int) {
-			defer swg.Done()
-			for i := 0; i < renderHeight*superSamples; i++ {
 
-				x := ((float64(j)/float64(renderWidth*superSamples) - 0.5) / (curZoom * superSamples)) - camX
-				y := ((float64(i)/float64(renderWidth*superSamples) - 0.3) / (curZoom * superSamples)) - camY
-				c := complex(x, y) //Rotate
-				z := complex(0, 0)
+	for sx := 0; sx < superSamples; sx++ {
+		for sy := 0; sy < superSamples; sy++ {
+			for j := 0; j < renderWidth; j++ {
+				swg.Add()
+				go func(j int) {
+					defer swg.Done()
+					for i := 0; i < renderHeight; i++ {
+						ssx := -(superSamples / 2) + (float64(sx) / float64(superSamples))
+						ssy := -(superSamples / 2) + (float64(sy) / float64(superSamples))
 
-				var it uint16
-				for it = 0; it < maxIters; it++ {
-					z = z*z + c
-					if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
-						break
+						x := (((float64(j)+ssx)/float64(renderWidth) - 0.5) / (curZoom)) - camX
+						y := (((float64(i)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - camY
+						c := complex(x, y) //Rotate
+						z := complex(0, 0)
+
+						var it uint16
+						for it = 0; it < maxIters; it++ {
+							z = z*z + c
+							if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+								break
+							}
+						}
+
+						if frameStart {
+							r, g, b := colorutil.HsvToRgb(math.Mod(float64(it*colorDegPerInter), 360), 1.0, 1.0)
+							offscreen.Set(j, i, color.RGBA64{uint16(r), uint16(g), uint16(b), 0xFFFF})
+						} else {
+							r, g, b := colorutil.HsvToRgb(math.Mod(float64(it*colorDegPerInter), 360), 1.0, 1.0)
+							or, og, ob, _ := offscreen.At(j, i).RGBA()
+							offscreen.Set(j, i, color.RGBA64{uint16(uint32(r) + or), uint16(uint32(g) + og), uint16(uint32(b) + ob), 0xFFFF})
+						}
+
+						if lumaMode {
+							if frameStart {
+								offscreenGray.Set(j, i, color.Gray16{palette[it]})
+
+								if it > maxBright {
+									maxBright = it
+								}
+								if it < minBright {
+									minBright = it
+								}
+							} else {
+								y := offscreenGray.At(j, i).(color.Gray16).Y
+								offscreenGray.Set(j, i, color.Gray16{(palette[it] + y)})
+							}
+						}
 					}
-				}
 
-				r, g, b := colorutil.HsvToRgb(math.Mod(float64(it*colorDegPerInter), 360), 1.0, 1.0)
-				or, og, ob, _ := offscreen.At(j/superSamples, i/superSamples).RGBA()
-				offscreen.Set(j/superSamples, i/superSamples, color.RGBA{r + uint8(or>>8)/2, g + uint8(og>>8)/2, b + uint8(ob>>8)/2, 255})
-
-				if lumaMode {
-					t := offscreenGray.Gray16At(j/superSamples, i/superSamples)
-					y := t.Y
-					offscreenGray.Set(j/superSamples, i/superSamples, color.Gray16{(palette[it] + y) / 2})
-					if it > maxBright {
-						maxBright = it
-					}
-					if it < minBright {
-						minBright = it
-					}
-				}
+				}(j)
 			}
-
-		}(j)
+			frameStart = false
+		}
 	}
+
 	swg.Wait()
 
 	if autoZoom {
