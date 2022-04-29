@@ -21,8 +21,7 @@ const (
 	lumaMode         = true
 	autoZoom         = true
 	startOffset      = 9800
-	superSample      = 8
-	windowDivisor    = 4.0
+	superSamples     = 32
 	winWidth         = 3840
 	winHeight        = 2160
 	maxIters         = 10000
@@ -38,18 +37,15 @@ const (
 
 var (
 	palette      [maxIters + 1]uint16
-	renderWidth  int = winWidth * superSample
-	renderHeight int = winHeight * superSample
-
-	minBright uint16 = 0xffff
-	maxBright uint16 = 0x0000
+	renderWidth  int    = winWidth
+	renderHeight int    = winHeight
+	minBright    uint16 = 0xffff
+	maxBright    uint16 = 0x0000
 
 	offscreen     *image.RGBA
 	offscreenGray *image.Gray16
 
-	downresChroma *ebiten.Image
-	downresLuma   *ebiten.Image
-	numThreads    = runtime.NumCPU()
+	numThreads = runtime.NumCPU()
 
 	curZoom                float64 = 1.0
 	zoomInt                int     = startOffset
@@ -94,11 +90,7 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 
-	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
-	op.GeoM.Reset()
-	op.GeoM.Translate(0, 0)
-	op.GeoM.Scale(1/windowDivisor, 1/windowDivisor)
-	screen.DrawImage(downresChroma, op)
+	screen.ReplacePixels(offscreen.Pix)
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, zoomInt))
 }
 
@@ -107,7 +99,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
-	ebiten.SetWindowSize(winWidth/windowDivisor, winHeight/windowDivisor)
+	ebiten.SetWindowSize(winWidth, winHeight)
 	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
 	ebiten.SetFPSMode(ebiten.FPSModeVsyncOn)
 
@@ -134,10 +126,8 @@ func main() {
 
 	offscreen = image.NewRGBA(image.Rect(0, 0, renderWidth, renderHeight))
 	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
-	downresChroma = ebiten.NewImage(renderWidth/superSample, renderHeight/superSample)
-	downresLuma = ebiten.NewImage(renderWidth/superSample, renderHeight/superSample)
 
-	if offscreen == nil || offscreenGray == nil || downresChroma == nil || downresLuma == nil {
+	if offscreen == nil || offscreenGray == nil {
 		fmt.Println("Failed to allocate image")
 		return
 	}
@@ -176,14 +166,14 @@ func updateOffscreen() {
 	swg := sizedwaitgroup.New(numThreads)
 	maxBright = 0x0000
 	minBright = 0xffff
-	for j := 0; j < renderWidth; j++ {
+	for j := 0; j < renderWidth*superSamples; j++ {
 		swg.Add()
 		go func(j int) {
 			defer swg.Done()
-			for i := 0; i < renderHeight; i++ {
+			for i := 0; i < renderHeight*superSamples; i++ {
 
-				x := ((float64(j)/float64(renderWidth) - 0.5) / curZoom) - camX
-				y := ((float64(i)/float64(renderWidth) - 0.25) / curZoom) - camY
+				x := ((float64(j)/float64(renderWidth*superSamples) - 0.5) / (curZoom * superSamples)) - camX
+				y := ((float64(i)/float64(renderWidth*superSamples) - 0.3) / (curZoom * superSamples)) - camY
 				c := complex(x, y) //Rotate
 				z := complex(0, 0)
 
@@ -196,10 +186,13 @@ func updateOffscreen() {
 				}
 
 				r, g, b := colorutil.HsvToRgb(math.Mod(float64(it*colorDegPerInter), 360), 1.0, 1.0)
-				offscreen.Set(j, i, color.RGBA{r, g, b, 255})
+				or, og, ob, _ := offscreen.At(j/superSamples, i/superSamples).RGBA()
+				offscreen.Set(j/superSamples, i/superSamples, color.RGBA{r + uint8(or>>8)/2, g + uint8(og>>8)/2, b + uint8(ob>>8)/2, 255})
 
 				if lumaMode {
-					offscreenGray.Set(j, i, color.Gray16{palette[it]})
+					t := offscreenGray.Gray16At(j/superSamples, i/superSamples)
+					y := t.Y
+					offscreenGray.Set(j/superSamples, i/superSamples, color.Gray16{(palette[it] + y) / 2})
 					if it > maxBright {
 						maxBright = it
 					}
@@ -213,11 +206,6 @@ func updateOffscreen() {
 	}
 	swg.Wait()
 
-	//Used for display, replace pixes is faster but we need the resizing and filtering here
-	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
-	op.GeoM.Scale(1.0/superSample, 1.0/superSample)
-	downresChroma.DrawImage(ebiten.NewImageFromImage(offscreen), op)
-
 	if autoZoom {
 		zoomInt = zoomInt + 1
 		sStep := (float64(zoomInt) / zoomDiv)
@@ -228,7 +216,7 @@ func updateOffscreen() {
 			fileName := fmt.Sprintf("out/color-%v.tif", zoomInt)
 			output, err := os.Create(fileName)
 			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-			if tiff.Encode(output, downresChroma, opt) != nil {
+			if tiff.Encode(output, offscreen, opt) != nil {
 				log.Println("ERROR: Failed to write image:", err)
 				os.Exit(1)
 			}
@@ -268,12 +256,10 @@ func updateOffscreen() {
 
 			swg.Wait()
 
-			downresLuma.DrawImage(ebiten.NewImageFromImage(offscreenGray), op)
-
 			fileName := fmt.Sprintf("out/luma-%v.tif", zoomInt)
 			output, err := os.Create(fileName)
 			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-			if tiff.Encode(output, downresLuma, opt) != nil {
+			if tiff.Encode(output, offscreenGray, opt) != nil {
 				log.Println("ERROR: Failed to write image:", err)
 				os.Exit(1)
 			}
