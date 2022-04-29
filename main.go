@@ -35,6 +35,8 @@ const (
 	escapeVal        = 4.0
 	colorDegPerInter = 10
 	flopDrawSeconds  = 10
+	doJitter         = true
+	fastJitter       = true
 
 	jitterDiv = superSamples //rand is 0 to 1, divide by this to get jitter
 
@@ -197,10 +199,14 @@ func updateOffscreen() {
 	swg := sizedwaitgroup.New(numThreads)
 	maxBright = 0x0000
 	minBright = 0xffff
-	var x, y float64
+	var x, y, xjit, yjit float64
 
 	for sx := 1; sx < superSamples; sx++ {
 		for sy := 1; sy <= superSamples; sy++ {
+			if doJitter && fastJitter {
+				xjit = rand.Float64() / jitterDiv
+				yjit = rand.Float64() / jitterDiv
+			}
 			rand.Seed(time.Now().UnixNano())
 			for j := 0; j < renderWidth; j++ {
 				swg.Add()
@@ -210,8 +216,10 @@ func updateOffscreen() {
 						ssx := (float64(sx) / float64(superSamples))
 						ssy := (float64(sy) / float64(superSamples))
 
-						xjit := rand.Float64() / jitterDiv
-						yjit := rand.Float64() / jitterDiv
+						if doJitter && !fastJitter {
+							xjit = rand.Float64() / jitterDiv
+							yjit = rand.Float64() / jitterDiv
+						}
 						x = (((float64(j)+ssx+xjit)/float64(renderWidth) - 0.5) / (curZoom)) - camX
 						y = (((float64(i)+ssy+yjit)/float64(renderWidth) - 0.3) / (curZoom)) - camY
 
