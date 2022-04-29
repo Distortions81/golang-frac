@@ -21,9 +21,9 @@ const (
 	lumaMode         = true
 	autoZoom         = true
 	startOffset      = 9800
-	winWidth         = 960
-	winHeight        = 540
-	superSamples     = 16 //max 16 (16x16, 256 samples)
+	winWidth         = 3840
+	winHeight        = 2160
+	superSamples     = 8 //max 256
 	maxIters         = 10000
 	offX             = 0.747926709975882
 	offY             = -0.10785035275635992
@@ -171,8 +171,9 @@ func updateOffscreen() {
 	maxBright = 0x0000
 	minBright = 0xffff
 
-	for sx := 0; sx < superSamples; sx++ {
-		for sy := 0; sy < superSamples; sy++ {
+	ssSr := int(math.Sqrt(superSamples))
+	for sx := 0; sx < ssSr; sx++ {
+		for sy := 0; sy < ssSr; sy++ {
 			for j := 0; j < renderWidth; j++ {
 				swg.Add()
 				go func(j int) {
