@@ -271,6 +271,7 @@ func updateOffscreen() {
 				}(j)
 			}
 			frameStart = false
+			fmt.Println("Pass:", sx+sy-1, "/", superSamples*superSamples, "Frame:", frameNum)
 		}
 	}
 
@@ -293,7 +294,6 @@ func updateOffscreen() {
 			output.Close()
 		}
 
-		/*Auto contrast*/
 		if lumaMode {
 			fileName := fmt.Sprintf("out/luma-%v.tif", zoomInt)
 			output, err := os.Create(fileName)
