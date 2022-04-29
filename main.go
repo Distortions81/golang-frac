@@ -26,7 +26,7 @@ const (
 	startOffset      = 9900
 	winWidth         = 3840
 	winHeight        = 2160
-	superSamples     = 16 //max 16x16
+	superSamples     = 4 //max 16x16
 	maxIters         = 0xFFFF
 	offX             = 0.747926709975882
 	offY             = -0.10785035275635992
@@ -279,7 +279,7 @@ func updateOffscreen() {
 				}(j)
 			}
 			frameStart = false
-			fmt.Println("Pass:", sx+sy-1, "/", superSamples*superSamples, "Frame:", frameNum)
+			fmt.Println("Pass:", sx-1, "x", y-1, "/", superSamples*superSamples, "Frame:", frameNum)
 		}
 	}
 
