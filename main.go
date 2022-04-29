@@ -6,8 +6,10 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"math/rand"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/PerformLine/go-stockutil/colorutil"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -21,18 +23,19 @@ const (
 	lumaMode         = true
 	autoZoom         = true
 	startOffset      = 9800
-	winWidth         = 3840
-	winHeight        = 2160
+	winWidth         = 960
+	winHeight        = 540
 	superSamples     = 16 //max 16x16
-	maxIters         = 10000
+	maxIters         = 0xFFFF
 	offX             = 0.747926709975882
 	offY             = -0.10785035275635992
 	zoomPow          = 100
 	zoomDiv          = 10000.0
 	escapeVal        = 4.0
 	colorDegPerInter = 10
+	jitterDiv        = superSamples //rand is 0 to 1, divide by this to get jitter
 
-	gamma = 1.0
+	gamma = 0.4545454545454545
 )
 
 var (
@@ -166,23 +169,28 @@ func main() {
 }
 
 func updateOffscreen() {
+	rand.Seed(time.Now().UnixNano())
 	frameStart := true
 	swg := sizedwaitgroup.New(numThreads)
 	maxBright = 0x0000
 	minBright = 0xffff
+	var x, y float64
 
-	for sx := 0; sx < superSamples; sx++ {
-		for sy := 0; sy < superSamples; sy++ {
+	for sx := 1; sx < superSamples; sx++ {
+		for sy := 1; sy <= superSamples; sy++ {
 			for j := 0; j < renderWidth; j++ {
 				swg.Add()
 				go func(j int) {
 					defer swg.Done()
 					for i := 0; i < renderHeight; i++ {
-						ssx := -(superSamples / 2) + (float64(sx) / float64(superSamples))
-						ssy := -(superSamples / 2) + (float64(sy) / float64(superSamples))
+						ssx := (float64(sx) / float64(superSamples))
+						ssy := (float64(sy) / float64(superSamples))
 
-						x := (((float64(j)+ssx)/float64(renderWidth) - 0.5) / (curZoom)) - camX
-						y := (((float64(i)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - camY
+						xjit := rand.Float64() / jitterDiv
+						yjit := rand.Float64() / jitterDiv
+						x = (((float64(j)+ssx+xjit)/float64(renderWidth) - 0.5) / (curZoom)) - camX
+						y = (((float64(i)+ssy+yjit)/float64(renderWidth) - 0.3) / (curZoom)) - camY
+
 						c := complex(x, y) //Rotate
 						z := complex(0, 0)
 
@@ -201,13 +209,13 @@ func updateOffscreen() {
 							r, g, b := colorutil.HsvToRgb(math.Mod(float64(it*colorDegPerInter), 360), 1.0, 1.0)
 							or, og, ob, _ := offscreen.At(j, i).RGBA()
 							if r > 254 {
-								r = 254
+								r = 255
 							}
 							if g > 254 {
-								g = 254
+								g = 255
 							}
 							if b > 254 {
-								b = 254
+								b = 255
 							}
 							offscreen.Set(j, i, color.RGBA64{uint16(uint32(r) + or), uint16(uint32(g) + og), uint16(uint32(b) + ob), 0xFFFF})
 						}
@@ -224,10 +232,10 @@ func updateOffscreen() {
 								}
 							} else {
 								y := offscreenGray.At(j, i).(color.Gray16).Y
-								if y > 254 {
-									y = 254
+								if y > 255 {
+									y = 255
 								}
-								offscreenGray.Set(j, i, color.Gray16{(palette[it] + y)})
+								offscreenGray.Set(j, i, color.Gray16{(it + y)})
 							}
 						}
 					}
@@ -278,8 +286,8 @@ func updateOffscreen() {
 						dim := y - minBright //Subtract so black is black
 						if dim > 0 {
 							//Increase constast
-							out := uint16(float64(dim) / (float64(65535-minBright-(65535-maxBright)) / 65535.0))
-							offscreenGray.Set(j, i, color.Gray16{out})
+							out := uint16(float64(dim) / (float64(0xFFFF-minBright-(0xFFFF-maxBright)) / 0xFFFF))
+							offscreenGray.Set(j, i, color.Gray16{palette[out]})
 						} else {
 							offscreenGray.Set(j, i, color.Gray16{0})
 						}
