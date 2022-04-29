@@ -23,7 +23,7 @@ const (
 	startOffset      = 9800
 	winWidth         = 3840
 	winHeight        = 2160
-	superSamples     = 256 //max 256
+	superSamples     = 8 //max 16x16
 	maxIters         = 10000
 	offX             = 0.747926709975882
 	offY             = -0.10785035275635992
@@ -32,7 +32,7 @@ const (
 	escapeVal        = 4.0
 	colorDegPerInter = 10
 
-	gamma = 0.4545454545454545
+	gamma = 1.0
 )
 
 var (
@@ -171,7 +171,7 @@ func updateOffscreen() {
 	maxBright = 0x0000
 	minBright = 0xffff
 
-	ssSr := int(math.Sqrt(superSamples))
+	ssSr := int(superSamples * superSamples)
 	for sx := 0; sx < ssSr; sx++ {
 		for sy := 0; sy < ssSr; sy++ {
 			for j := 0; j < renderWidth; j++ {
