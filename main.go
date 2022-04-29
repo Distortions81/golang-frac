@@ -23,7 +23,7 @@ const (
 	startOffset      = 9800
 	winWidth         = 3840
 	winHeight        = 2160
-	superSamples     = 8 //max 16x16
+	superSamples     = 16 //max 16x16
 	maxIters         = 10000
 	offX             = 0.747926709975882
 	offY             = -0.10785035275635992
@@ -201,6 +201,15 @@ func updateOffscreen() {
 						} else {
 							r, g, b := colorutil.HsvToRgb(math.Mod(float64(it*colorDegPerInter), 360), 1.0, 1.0)
 							or, og, ob, _ := offscreen.At(j, i).RGBA()
+							if r > 254 {
+								r = 254
+							}
+							if g > 254 {
+								g = 254
+							}
+							if b > 254 {
+								b = 254
+							}
 							offscreen.Set(j, i, color.RGBA64{uint16(uint32(r) + or), uint16(uint32(g) + og), uint16(uint32(b) + ob), 0xFFFF})
 						}
 
@@ -216,6 +225,9 @@ func updateOffscreen() {
 								}
 							} else {
 								y := offscreenGray.At(j, i).(color.Gray16).Y
+								if y > 254 {
+									y = 254
+								}
 								offscreenGray.Set(j, i, color.Gray16{(palette[it] + y)})
 							}
 						}
