@@ -22,9 +22,9 @@ const (
 	chromaMode       = true
 	lumaMode         = true
 	autoZoom         = true
-	startOffset      = 9800
-	winWidth         = 960
-	winHeight        = 540
+	startOffset      = 9900
+	winWidth         = 3840
+	winHeight        = 2160
 	superSamples     = 16 //max 16x16
 	maxIters         = 0xFFFF
 	offX             = 0.747926709975882
@@ -33,9 +33,10 @@ const (
 	zoomDiv          = 10000.0
 	escapeVal        = 4.0
 	colorDegPerInter = 10
+	flopDraws        = 240
 	jitterDiv        = superSamples //rand is 0 to 1, divide by this to get jitter
 
-	gamma = 0.4545454545454545
+	gamma = 0.8
 )
 
 var (
@@ -54,7 +55,9 @@ var (
 	curZoom                float64 = 1.0
 	zoomInt                int     = startOffset
 	frameNum               uint64  = 0
+	drawNum                uint64  = 0
 	lastMouseX, lastMouseY int
+	flopDraw               bool
 
 	camX, camY float64
 	camZoomDiv float64 = 1
@@ -93,9 +96,20 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-
+	drawNum++
 	screen.Clear()
-	screenBuffer = ebiten.NewImageFromImage(offscreen)
+	if drawNum%flopDraws == 0 {
+		if flopDraw {
+			flopDraw = false
+		} else {
+			flopDraw = true
+		}
+	}
+	if flopDraw {
+		screenBuffer = ebiten.NewImageFromImage(offscreen)
+	} else {
+		screenBuffer = ebiten.NewImageFromImage(offscreenGray)
+	}
 	screen.DrawImage(screenBuffer, nil)
 	screenBuffer.Dispose()
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, zoomInt))
@@ -169,7 +183,6 @@ func main() {
 }
 
 func updateOffscreen() {
-	rand.Seed(time.Now().UnixNano())
 	frameStart := true
 	swg := sizedwaitgroup.New(numThreads)
 	maxBright = 0x0000
@@ -178,6 +191,7 @@ func updateOffscreen() {
 
 	for sx := 1; sx < superSamples; sx++ {
 		for sy := 1; sy <= superSamples; sy++ {
+			rand.Seed(time.Now().UnixNano())
 			for j := 0; j < renderWidth; j++ {
 				swg.Add()
 				go func(j int) {
@@ -222,7 +236,10 @@ func updateOffscreen() {
 
 						if lumaMode {
 							if frameStart {
-								offscreenGray.Set(j, i, color.Gray16{palette[it]})
+								if it > 255 {
+									it = 255
+								}
+								offscreenGray.Set(j, i, color.Gray16{it})
 
 								if it > maxBright {
 									maxBright = it
@@ -232,9 +249,10 @@ func updateOffscreen() {
 								}
 							} else {
 								y := offscreenGray.At(j, i).(color.Gray16).Y
-								if y > 255 {
-									y = 255
+								if it > 255 {
+									it = 255
 								}
+
 								offscreenGray.Set(j, i, color.Gray16{(it + y)})
 							}
 						}
@@ -267,37 +285,6 @@ func updateOffscreen() {
 
 		/*Auto contrast*/
 		if lumaMode {
-			//Auto constrast limits
-			if minBright > 51000 {
-				minBright = 51000
-			}
-			if maxBright < 51255 {
-				maxBright = 51255
-			}
-
-			for j := 0; j < renderWidth; j++ {
-				swg.Add()
-				go func(j int) {
-					defer swg.Done()
-
-					for i := 0; i < renderHeight; i++ {
-						pixel := offscreenGray.Gray16At(j, i)
-						y := pixel.Y
-						dim := y - minBright //Subtract so black is black
-						if dim > 0 {
-							//Increase constast
-							out := uint16(float64(dim) / (float64(0xFFFF-minBright-(0xFFFF-maxBright)) / 0xFFFF))
-							offscreenGray.Set(j, i, color.Gray16{palette[out]})
-						} else {
-							offscreenGray.Set(j, i, color.Gray16{0})
-						}
-					}
-
-				}(j)
-			}
-
-			swg.Wait()
-
 			fileName := fmt.Sprintf("out/luma-%v.tif", zoomInt)
 			output, err := os.Create(fileName)
 			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
