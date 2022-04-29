@@ -23,7 +23,7 @@ const (
 	startOffset      = 9800
 	winWidth         = 3840
 	winHeight        = 2160
-	superSamples     = 8 //max 256
+	superSamples     = 256 //max 256
 	maxIters         = 10000
 	offX             = 0.747926709975882
 	offY             = -0.10785035275635992
