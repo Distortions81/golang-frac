@@ -33,8 +33,9 @@ const (
 	zoomDiv          = 10000.0
 	escapeVal        = 4.0
 	colorDegPerInter = 10
-	flopDraws        = 240
-	jitterDiv        = superSamples //rand is 0 to 1, divide by this to get jitter
+	flopDrawSeconds  = 10
+
+	jitterDiv = superSamples //rand is 0 to 1, divide by this to get jitter
 
 	gamma = 0.8
 )
@@ -58,6 +59,7 @@ var (
 	drawNum                uint64  = 0
 	lastMouseX, lastMouseY int
 	flopDraw               bool
+	lastDraw               time.Time
 
 	camX, camY float64
 	camZoomDiv float64 = 1
@@ -98,7 +100,8 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	drawNum++
 	screen.Clear()
-	if drawNum%flopDraws == 0 {
+	if time.Since(lastDraw).Seconds() > flopDrawSeconds {
+		lastDraw = time.Now()
 		if flopDraw {
 			flopDraw = false
 		} else {
