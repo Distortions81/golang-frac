@@ -54,7 +54,7 @@ var (
 	offscreen     *image.RGBA64
 	offscreenGray *image.Gray16
 
-	numThreads = runtime.NumCPU() - 1
+	numThreads = (runtime.NumCPU() / 2)
 
 	curZoom                float64 = 1.0
 	zoomInt                int     = startOffset
