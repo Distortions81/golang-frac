@@ -279,7 +279,7 @@ func updateOffscreen() {
 				}(j)
 			}
 			frameStart = false
-			fmt.Println("Pass:", sx-1, "x", sy-1, "/", superSamples*superSamples, "Frame:", frameNum)
+			fmt.Println("Pass:", sx, "x", sy, "/", superSamples*superSamples, "Frame:", frameNum)
 		}
 	}
 
