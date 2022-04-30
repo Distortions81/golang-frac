@@ -50,6 +50,7 @@ var (
 	zoomInt         int     = startOffset
 	lastReported    time.Time
 	lastReportedVal float64
+	frameCount      int
 )
 
 type Game struct {
@@ -170,4 +171,7 @@ func updateOffscreen() {
 			output.Close()
 		}
 	}
+
+	frameCount++
+	fmt.Println("Completed frame:", frameCount)
 }
