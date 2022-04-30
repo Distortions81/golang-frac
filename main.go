@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/remeh/sizedwaitgroup"
-	"github.com/shirou/gopsutil/cpu"
 	"golang.org/x/image/tiff"
 )
 
@@ -52,42 +51,13 @@ var (
 	lastReportedVal float64
 	frameCount      int
 
-	cacheSizeKB float64 = 384
-	workBlock   int
+	workBlock int = 64
 )
 
 type Game struct {
 }
 
 func main() {
-	/* Detect logical CPUs */
-	var lCPUs int = runtime.NumCPU()
-	cdat, cerr := cpu.Counts(false)
-
-	if cerr == nil {
-		fmt.Println("Logical CPUs:", cdat)
-	} else {
-		fmt.Println("Unable to detect logical CPUs.")
-	}
-	fmt.Println("Threads found:", lCPUs)
-
-	/* Adjust for hyperthreading */
-	threadPerCPU := float64(cdat / lCPUs)
-	cachePerThread := float64(cacheSizeKB / threadPerCPU)
-	if lCPUs < cdat {
-		workBlock = int(math.Sqrt((cachePerThread * 1024.0 * 8.0) / 64.0))
-	} else {
-		workBlock = int(math.Sqrt((cacheSizeKB * 1024.0 * 8.0) / 64.0))
-	}
-	fmt.Println("Work block size:", workBlock*workBlock, "pixels")
-	fmt.Println("Threads per CPU:", threadPerCPU)
-	fmt.Println("Cache size:", cacheSizeKB, "KB, per thread:", cachePerThread, "KB")
-
-	if lCPUs < 1 {
-		fmt.Println("Invalid number of threads, defaulting to 1.")
-		lCPUs = 1
-	}
-
 	offscreen = image.NewRGBA64(image.Rect(0, 0, renderWidth, renderHeight))
 	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
 
@@ -107,7 +77,7 @@ func updateOffscreen() {
 
 	wg := sizedwaitgroup.New(numThreads)
 
-	ss := uint64(superSample * superSample)
+	ss := uint32(superSample * superSample)
 	numWorkBlocks := (renderWidth / workBlock) * (renderHeight / workBlock)
 	blocksDone := 0
 
@@ -134,7 +104,7 @@ func updateOffscreen() {
 
 				for x := xStart; x < xEnd; x++ {
 					for y := yStart; y < yEnd; y++ {
-						var pixel uint64
+						var pixel uint32
 
 						for sx := 0; sx < superSample; sx++ {
 							for sy := 0; sy < superSample; sy++ {
@@ -155,7 +125,7 @@ func updateOffscreen() {
 									}
 								}
 
-								pixel += uint64(it)
+								pixel += uint32(it)
 							}
 						}
 						offscreenGray.SetGray16(x, y, color.Gray16{Y: palette[uint16(pixel/ss)]})
