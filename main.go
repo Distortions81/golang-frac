@@ -96,19 +96,6 @@ func updateOffscreen() {
 				lastReported = time.Now()
 				fmt.Printf("%v/%v: %0.2f%%, Work blocks(%d/%d)\n", time.Since(startTime).Round(time.Second).String(), time.Since(frameTime).Round(time.Second).String(), percentDone, blocksDone, numWorkBlocks)
 				lastReportedVal = percentDone
-
-				go func() {
-					if lumaMode {
-						fileName := fmt.Sprintf("out/progress.tif")
-						output, err := os.Create(fileName)
-						opt := &tiff.Options{}
-						if tiff.Encode(output, offscreenGray, opt) != nil {
-							log.Println("ERROR: Failed to write image:", err)
-							os.Exit(1)
-						}
-						output.Close()
-					}
-				}()
 			}
 
 			wg.Add()
