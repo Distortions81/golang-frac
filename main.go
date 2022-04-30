@@ -76,6 +76,8 @@ func main() {
 
 func updateOffscreen() {
 
+	startTime = time.Now()
+
 	wg := sizedwaitgroup.New(numThreads)
 
 	ss := uint32(superSample * superSample)
