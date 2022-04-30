@@ -45,6 +45,7 @@ var (
 
 	numThreads = runtime.NumCPU()
 	startTime  = time.Now()
+	frameTime  = time.Now()
 
 	curZoom         float64 = 1.0
 	zoomInt         int     = startOffset
@@ -76,7 +77,7 @@ func main() {
 
 func updateOffscreen() {
 
-	startTime = time.Now()
+	frameTime = time.Now()
 
 	wg := sizedwaitgroup.New(numThreads)
 
@@ -91,8 +92,21 @@ func updateOffscreen() {
 
 			if time.Since(lastReported) > reportInterval && lastReportedVal < percentDone {
 				lastReported = time.Now()
-				fmt.Printf("%v: %0.2f%%, Work blocks(%d/%d)\n", time.Since(startTime).Round(time.Second).String(), percentDone, blocksDone, numWorkBlocks)
+				fmt.Printf("%v/%v: %0.2f%%, Work blocks(%d/%d)\n", time.Since(startTime).Round(time.Second).String(), time.Since(frameTime).Round(time.Second).String(), percentDone, blocksDone, numWorkBlocks)
 				lastReportedVal = percentDone
+
+				go func() {
+					if lumaMode {
+						fileName := fmt.Sprintf("out/luma-%v.tif", zoomInt)
+						output, err := os.Create(fileName)
+						opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+						if tiff.Encode(output, offscreenGray, opt) != nil {
+							log.Println("ERROR: Failed to write image:", err)
+							os.Exit(1)
+						}
+						output.Close()
+					}
+				}()
 			}
 
 			wg.Add()
