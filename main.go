@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/remeh/sizedwaitgroup"
+	"github.com/shirou/gopsutil/cpu"
 	"golang.org/x/image/tiff"
 )
 
@@ -19,8 +20,8 @@ const (
 	lumaMode    = true
 	autoZoom    = true
 	startOffset = 9900
-	winWidth    = 512
-	winHeight   = 512
+	winWidth    = 3840
+	winHeight   = 2160
 	superSample = 8 //max 255
 	maxIters    = 10000
 	offX        = 0.747926709975882
@@ -28,10 +29,9 @@ const (
 	zoomPow     = 100
 	zoomDiv     = 10000.0
 	escapeVal   = 4.0
-	workBlock   = 16
 
 	gamma          = 0.25
-	reportInterval = 10 * time.Second
+	reportInterval = 1 * time.Second
 )
 
 var (
@@ -51,16 +51,41 @@ var (
 	lastReported    time.Time
 	lastReportedVal float64
 	frameCount      int
+
+	cacheSizeKB float64 = 384
+	workBlock   int
 )
 
 type Game struct {
 }
 
 func main() {
-	buf := fmt.Sprintf("Threads found: %v", numThreads)
-	fmt.Println(buf)
-	if numThreads < 1 {
-		numThreads = 1
+	/* Detect logical CPUs */
+	var lCPUs int = runtime.NumCPU()
+	cdat, cerr := cpu.Counts(false)
+
+	if cerr == nil {
+		fmt.Println("Logical CPUs:", cdat)
+	} else {
+		fmt.Println("Unable to detect logical CPUs.")
+	}
+	fmt.Println("Threads found:", lCPUs)
+
+	/* Adjust for hyperthreading */
+	threadPerCPU := float64(cdat / lCPUs)
+	cachePerThread := float64(cacheSizeKB / threadPerCPU)
+	if lCPUs < cdat {
+		workBlock = int(math.Sqrt((cachePerThread * 1024.0 * 8.0) / 64.0))
+	} else {
+		workBlock = int(math.Sqrt((cacheSizeKB * 1024.0 * 8.0) / 64.0))
+	}
+	fmt.Println("Work block size:", workBlock*workBlock, "pixels")
+	fmt.Println("Threads per CPU:", threadPerCPU)
+	fmt.Println("Cache size:", cacheSizeKB, "KB, per thread:", cachePerThread, "KB")
+
+	if lCPUs < 1 {
+		fmt.Println("Invalid number of threads, defaulting to 1.")
+		lCPUs = 1
 	}
 
 	offscreen = image.NewRGBA64(image.Rect(0, 0, renderWidth, renderHeight))
