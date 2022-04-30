@@ -15,24 +15,25 @@ import (
 )
 
 const (
-	preIterate  = 0
+	preIters    = 100
+	maxIters    = 10000
 	insideSkip  = true
 	chromaMode  = false
 	lumaMode    = true
 	autoZoom    = true
-	startOffset = 9900
+	startOffset = 9800
 	winWidth    = 3840
 	winHeight   = 2160
-	superSample = 8 //max 255
-	maxIters    = 10000
+	superSample = 16 //max 255
 	offX        = 0.747926709975882
 	offY        = -0.10785035275635992
 	zoomPow     = 100
 	zoomDiv     = 10000.0
 	escapeVal   = 4.0
 
-	gamma          = 0.4545454545454545
+	gamma          = 0.454545
 	reportInterval = 1 * time.Second
+	workBlock      = 16
 )
 
 var (
@@ -54,8 +55,6 @@ var (
 	lastReported    time.Time
 	lastReportedVal float64
 	frameCount      int
-
-	workBlock int = 64
 )
 
 type Game struct {
@@ -174,10 +173,21 @@ func iteratePoint(x, y float64) uint32 {
 
 	var it uint32 = 0
 
-	for it = preIterate; it < maxIters; it++ {
+	skip := false
+	for it = 0; it < preIters; it++ {
 		z = z*z + c
 		if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+			skip = true
 			break
+		}
+	}
+	var iters uint32 = maxIters - preIters
+	if !skip {
+		for it = 0; it < iters; it++ {
+			z = z*z + c
+			if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+				break
+			}
 		}
 	}
 	return it
