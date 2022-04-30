@@ -40,7 +40,7 @@ var (
 	minBright    uint16 = 0xffff
 	maxBright    uint16 = 0x0000
 
-	offscreen     *image.RGBA64
+	offscreen     *image.RGBA
 	offscreenGray *image.Gray16
 
 	numThreads = runtime.NumCPU()
@@ -51,14 +51,14 @@ var (
 	lastReportedVal float64
 	frameCount      int
 
-	workBlock int = 16
+	workBlock int = 128
 )
 
 type Game struct {
 }
 
 func main() {
-	offscreen = image.NewRGBA64(image.Rect(0, 0, renderWidth, renderHeight))
+	offscreen = image.NewRGBA(image.Rect(0, 0, renderWidth, renderHeight))
 	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
 
 	for i := range palette {
@@ -88,7 +88,7 @@ func updateOffscreen() {
 
 			if time.Since(lastReported) > reportInterval && lastReportedVal < percentDone {
 				lastReported = time.Now()
-				fmt.Printf("%0.2f%%\n", percentDone)
+				fmt.Printf("%0.2f%%, %d/%d\n", percentDone, blocksDone, numWorkBlocks)
 				lastReportedVal = percentDone
 			}
 
