@@ -6,27 +6,27 @@ import (
 	"image/color"
 	"log"
 	"math"
-	"math/rand"
 	"os"
 	"runtime"
 	"time"
 
-	"github.com/PerformLine/go-stockutil/colorutil"
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/remeh/sizedwaitgroup"
 	"golang.org/x/image/tiff"
 )
 
+type XY struct {
+	X, Y float64
+}
+
 const (
 	headlessMode     = true
-	chromaMode       = true
+	chromaMode       = false
 	lumaMode         = true
 	autoZoom         = true
 	startOffset      = 9900
-	winWidth         = 3840
-	winHeight        = 2160
-	superSamples     = 4 //max 16x16
+	winWidth         = 1280
+	winHeight        = 720
+	superSample      = 4 //max 255
 	maxIters         = 0xFFFF
 	offX             = 0.747926709975882
 	offY             = -0.10785035275635992
@@ -37,10 +37,9 @@ const (
 	flopDrawSeconds  = 10
 	doJitter         = false
 	fastJitter       = true
+	workBlock        = 16
 
-	jitterDiv = superSamples //rand is 0 to 1, divide by this to get jitter
-
-	gamma = 0.8
+	gamma = 0.4545
 )
 
 var (
@@ -50,240 +49,102 @@ var (
 	minBright    uint16 = 0xffff
 	maxBright    uint16 = 0x0000
 
-	screenBuffer  *ebiten.Image
 	offscreen     *image.RGBA64
 	offscreenGray *image.Gray16
 
 	numThreads = runtime.NumCPU()
 
-	curZoom                float64 = 1.0
-	zoomInt                int     = startOffset
-	frameNum               uint64  = 0
-	drawNum                uint64  = 0
-	lastMouseX, lastMouseY int
-	flopDraw               bool
-	lastDraw               time.Time
+	curZoom    float64 = 1.0
+	zoomInt    int     = startOffset
+	frameNum   uint64  = 0
+	lastReport time.Time
 
 	camX, camY float64
-	camZoomDiv float64 = 1
-	wheelMult  int     = 1
 )
 
 type Game struct {
 }
 
-func (g *Game) Update() error {
-
-	if !autoZoom {
-		tX, tY := ebiten.CursorPosition()
-		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-			diffX := (tX - lastMouseX)
-			diffY := (tY - lastMouseY)
-
-			camX += ((float64(diffX) / camZoomDiv) / (float64(zoomInt) * curZoom))
-			camY += ((float64(diffY) / camZoomDiv) / (float64(zoomInt) * curZoom))
-		}
-
-		lastMouseX = tX
-		lastMouseY = tY
-
-		_, fsy := ebiten.Wheel()
-		if fsy > 0 {
-			zoomInt += wheelMult
-		} else if fsy < 0 {
-			zoomInt -= wheelMult
-		}
-
-		sStep := float64(zoomInt) / zoomDiv
-		curZoom = (math.Pow(sStep, zoomPow))
-	}
-	return nil
-}
-
-func (g *Game) Draw(screen *ebiten.Image) {
-	drawNum++
-	screen.Clear()
-	if time.Since(lastDraw).Seconds() > flopDrawSeconds {
-		lastDraw = time.Now()
-		if flopDraw {
-			flopDraw = false
-		} else {
-			flopDraw = true
-		}
-	}
-	if flopDraw {
-		screenBuffer = ebiten.NewImageFromImage(offscreen)
-	} else {
-		screenBuffer = ebiten.NewImageFromImage(offscreenGray)
-	}
-	screen.DrawImage(screenBuffer, nil)
-	screenBuffer.Dispose()
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f, UPS: %0.2f, x: %v, y: %v z: %v", ebiten.CurrentFPS(), ebiten.CurrentTPS(), camX, camY, zoomInt))
-}
-
-func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return outsideWidth, outsideHeight
-}
-
 func main() {
-	ebiten.SetWindowSize(winWidth, winHeight)
-	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
-	ebiten.SetFPSMode(ebiten.FPSModeVsyncOn)
-
-	camX = offX
-	camY = offY
-
 	buf := fmt.Sprintf("Threads found: %v", numThreads)
 	fmt.Println(buf)
 	if numThreads < 1 {
 		numThreads = 1
 	}
 
-	fmt.Println("Allocating image...")
-
-	/* Max image size */
-	if renderWidth > 32768 {
-		renderWidth = 32768
-		fmt.Println("renderWidth > 32768, truncating...")
-	}
-	if renderHeight > 32768 {
-		renderHeight = 32768
-		fmt.Println("renderHeight > 32768, truncating...")
-	}
-
 	offscreen = image.NewRGBA64(image.Rect(0, 0, renderWidth, renderHeight))
 	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
 
-	if offscreen == nil || offscreenGray == nil {
-		fmt.Println("Failed to allocate image")
-		return
+	for column := range palette {
+		palette[column] = uint16(math.Pow(float64(column)/float64(maxIters), gamma) * float64(0xffff))
 	}
-	fmt.Printf("complete!\n")
-
-	fmt.Printf("Building gamma table...")
-	swg := sizedwaitgroup.New((numThreads))
-	for i := range palette {
-		swg.Add()
-		go func(i int) {
-			defer swg.Done()
-
-			palette[i] = uint16(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xffff))
-		}(i)
-	}
-
-	swg.Wait()
-	fmt.Printf("complete!\n")
 
 	sStep := (float64(zoomInt) / zoomDiv)
 	curZoom = (math.Pow(sStep, zoomPow))
 
-	go func() {
-		for {
-			updateOffscreen()
-		}
-	}()
-
-	if !headlessMode {
-		if err := ebiten.RunGame(&Game{}); err != nil {
-			log.Fatal(err)
-		}
-	} else {
-		for {
-			time.Sleep(time.Second)
-		}
+	for {
+		updateOffscreen()
 	}
 }
 
 func updateOffscreen() {
-	frameStart := true
-	swg := sizedwaitgroup.New(numThreads)
-	maxBright = 0x0000
-	minBright = 0xffff
-	var x, y, xjit, yjit float64
 
-	for sx := 1; sx < superSamples; sx++ {
-		for sy := 1; sy <= superSamples; sy++ {
-			if doJitter && fastJitter {
-				xjit = rand.Float64() / jitterDiv
-				yjit = rand.Float64() / jitterDiv
+	wg := sizedwaitgroup.New(numThreads)
+	numWorkBlocks := (renderWidth / workBlock) * (renderHeight / workBlock)
+	blocksDone := 0
+
+	for xBlock := 0; xBlock < renderWidth/workBlock; xBlock++ {
+		for yBlock := 0; yBlock < renderHeight/workBlock; yBlock++ {
+			blocksDone++
+			if time.Since(lastReport) > time.Second*5 {
+				lastReport = time.Now()
+				fmt.Printf("%0.2f%%\n", float64(blocksDone)/float64(numWorkBlocks)*100.0)
 			}
-			rand.Seed(time.Now().UnixNano())
-			for j := 0; j < renderWidth; j++ {
-				swg.Add()
-				go func(j int) {
-					defer swg.Done()
-					for i := 0; i < renderHeight; i++ {
-						ssx := (float64(sx) / float64(superSamples))
-						ssy := (float64(sy) / float64(superSamples))
+			wg.Add()
+			go func(xBlock, yBlock int) {
+				defer wg.Done()
 
-						if doJitter && !fastJitter {
-							xjit = rand.Float64() / jitterDiv
-							yjit = rand.Float64() / jitterDiv
-						}
-						x = (((float64(j)+ssx+xjit)/float64(renderWidth) - 0.5) / (curZoom)) - camX
-						y = (((float64(i)+ssy+yjit)/float64(renderWidth) - 0.3) / (curZoom)) - camY
+				xStart := xBlock * workBlock
+				yStart := yBlock * workBlock
 
-						c := complex(x, y) //Rotate
-						z := complex(0, 0)
+				xEnd := xStart + workBlock
+				yEnd := yStart + workBlock
 
-						var it uint16
-						for it = 0; it < maxIters; it++ {
-							z = z*z + c
-							if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
-								break
-							}
-						}
+				for x := xStart; x < xEnd; x++ {
+					for y := yStart; y < yEnd; y++ {
+						var pixel uint64
 
-						if frameStart {
-							r, g, b := colorutil.HsvToRgb(math.Mod(float64(it*colorDegPerInter), 360), 1.0, 1.0)
-							offscreen.Set(j, i, color.RGBA64{uint16(r), uint16(g), uint16(b), 0xFFFF})
-						} else {
-							r, g, b := colorutil.HsvToRgb(math.Mod(float64(it*colorDegPerInter), 360), 1.0, 1.0)
-							or, og, ob, _ := offscreen.At(j, i).RGBA()
-							if r > 254 {
-								r = 255
-							}
-							if g > 254 {
-								g = 255
-							}
-							if b > 254 {
-								b = 255
-							}
-							offscreen.Set(j, i, color.RGBA64{uint16(uint32(r) + or), uint16(uint32(g) + og), uint16(uint32(b) + ob), 0xFFFF})
-						}
+						for sx := 0; sx < superSample; sx++ {
+							for sy := 0; sy < superSample; sy++ {
+								ssx := float64(sx) / float64(superSample)
+								ssy := float64(sy) / float64(superSample)
 
-						if lumaMode {
-							if frameStart {
-								if it > 255 {
-									it = 255
-								}
-								offscreenGray.Set(j, i, color.Gray16{it})
+								xx := (((float64(x)+ssx)/float64(renderWidth) - 0.5) / (curZoom)) - camX
+								yy := (((float64(y)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - camY
 
-								if it > maxBright {
-									maxBright = it
-								}
-								if it < minBright {
-									minBright = it
-								}
-							} else {
-								y := offscreenGray.At(j, i).(color.Gray16).Y
-								if it > 255 {
-									it = 255
+								c := complex(xx, yy) //Rotate
+								z := complex(0, 0)
+
+								var it uint16
+								for it = 0; it < maxIters; it++ {
+									z = z*z + c
+									if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+										break
+									}
 								}
 
-								offscreenGray.Set(j, i, color.Gray16{(it + y)})
+								pixel += uint64(it)
 							}
 						}
+						offscreenGray.SetGray16(x, y, color.Gray16{Y: palette[uint16(pixel/(superSample*superSample))]})
+
 					}
-
-				}(j)
-			}
-			frameStart = false
-			fmt.Println("Pass:", sx, "x", sy, "/", superSamples*superSamples, "Frame:", frameNum)
+				}
+			}(xBlock, yBlock)
 		}
-	}
 
-	swg.Wait()
+	}
+	wg.Wait()
 
 	if autoZoom {
 		zoomInt = zoomInt + 1
@@ -315,10 +176,4 @@ func updateOffscreen() {
 	}
 
 	frameNum++
-
-}
-
-func init() {
-
-	//
 }
