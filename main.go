@@ -15,6 +15,8 @@ import (
 )
 
 const (
+	preIterate  = 0
+	insideSkip  = true
 	chromaMode  = false
 	lumaMode    = true
 	autoZoom    = true
@@ -29,7 +31,7 @@ const (
 	zoomDiv     = 10000.0
 	escapeVal   = 4.0
 
-	gamma          = 0.25
+	gamma          = 0.4545454545454545
 	reportInterval = 1 * time.Second
 )
 
@@ -53,7 +55,7 @@ var (
 	lastReportedVal float64
 	frameCount      int
 
-	workBlock int = 128
+	workBlock int = 32
 )
 
 type Game struct {
@@ -97,9 +99,9 @@ func updateOffscreen() {
 
 				go func() {
 					if lumaMode {
-						fileName := fmt.Sprintf("out/luma-%v.tif", zoomInt)
+						fileName := fmt.Sprintf("out/progress.tif")
 						output, err := os.Create(fileName)
-						opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+						opt := &tiff.Options{}
 						if tiff.Encode(output, offscreenGray, opt) != nil {
 							log.Println("ERROR: Failed to write image:", err)
 							os.Exit(1)
@@ -121,7 +123,7 @@ func updateOffscreen() {
 
 				for x := xStart; x < xEnd; x++ {
 					for y := yStart; y < yEnd; y++ {
-						var pixel uint32
+						var pixel uint32 = 0
 
 						for sx := 0; sx < superSample; sx++ {
 							for sy := 0; sy < superSample; sy++ {
@@ -131,20 +133,10 @@ func updateOffscreen() {
 								xx := (((float64(x)+ssx)/float64(renderWidth) - 0.5) / (curZoom)) - offX
 								yy := (((float64(y)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - offY
 
-								c := complex(xx, yy) //Rotate
-								z := complex(0, 0)
-
-								var it uint16
-								for it = 0; it < maxIters; it++ {
-									z = z*z + c
-									if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
-										break
-									}
-								}
-
-								pixel += uint32(it)
+								pixel += iteratePoint(xx, yy)
 							}
 						}
+
 						offscreenGray.SetGray16(x, y, color.Gray16{Y: palette[uint16(pixel/ss)]})
 
 					}
@@ -186,4 +178,21 @@ func updateOffscreen() {
 
 	frameCount++
 	fmt.Println("Completed frame:", frameCount)
+}
+
+func iteratePoint(x, y float64) uint32 {
+
+	c := complex(x, y) //Rotate
+	z := complex(0, 0)
+
+	var it uint32 = 0
+
+	for it = preIterate; it < maxIters; it++ {
+		z = z*z + c
+		if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+			break
+		}
+	}
+	return it
+
 }
