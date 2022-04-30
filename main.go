@@ -15,15 +15,15 @@ import (
 )
 
 const (
-	preIters    = 12
+	preIters    = 15
 	maxIters    = 800
 	chromaMode  = false
 	lumaMode    = true
 	autoZoom    = true
-	startOffset = 9800
-	winWidth    = 1280
-	winHeight   = 720
-	superSample = 2 //max 255
+	startOffset = 9820
+	winWidth    = 3840
+	winHeight   = 2160
+	superSample = 16 //max 255
 	offX        = 0.747926709975882
 	offY        = -0.10785035275635992
 	zoomPow     = 100
