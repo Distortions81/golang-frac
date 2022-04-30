@@ -8,7 +8,6 @@ import (
 	"math"
 	"os"
 	"runtime"
-	"time"
 
 	"github.com/remeh/sizedwaitgroup"
 	"golang.org/x/image/tiff"
@@ -26,7 +25,7 @@ const (
 	startOffset      = 9900
 	winWidth         = 1280
 	winHeight        = 720
-	superSample      = 4 //max 255
+	superSample      = 2 //max 255
 	maxIters         = 0xFFFF
 	offX             = 0.747926709975882
 	offY             = -0.10785035275635992
@@ -39,7 +38,7 @@ const (
 	fastJitter       = true
 	workBlock        = 16
 
-	gamma = 0.4545
+	gamma = 0.3
 )
 
 var (
@@ -54,10 +53,10 @@ var (
 
 	numThreads = runtime.NumCPU()
 
-	curZoom    float64 = 1.0
-	zoomInt    int     = startOffset
-	frameNum   uint64  = 0
-	lastReport time.Time
+	curZoom      float64 = 1.0
+	zoomInt      int     = startOffset
+	frameNum     uint64  = 0
+	lastReported int
 
 	camX, camY float64
 )
@@ -96,8 +95,9 @@ func updateOffscreen() {
 	for xBlock := 0; xBlock < renderWidth/workBlock; xBlock++ {
 		for yBlock := 0; yBlock < renderHeight/workBlock; yBlock++ {
 			blocksDone++
-			if time.Since(lastReport) > time.Second*5 {
-				lastReport = time.Now()
+			percentDone := (float64(blocksDone) / float64(numWorkBlocks) * 100.0)
+			if lastReported/10 < int(percentDone)/10 && int(percentDone)%10 == 0 {
+				lastReported = int(percentDone)
 				fmt.Printf("%0.2f%%\n", float64(blocksDone)/float64(numWorkBlocks)*100.0)
 			}
 			wg.Add()
