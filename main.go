@@ -44,6 +44,7 @@ var (
 	offscreenGray *image.Gray16
 
 	numThreads = runtime.NumCPU()
+	startTime  = time.Now()
 
 	curZoom         float64 = 1.0
 	zoomInt         int     = startOffset
@@ -88,7 +89,7 @@ func updateOffscreen() {
 
 			if time.Since(lastReported) > reportInterval && lastReportedVal < percentDone {
 				lastReported = time.Now()
-				fmt.Printf("%0.2f%%, %d/%d\n", percentDone, blocksDone, numWorkBlocks)
+				fmt.Printf("%v: %0.2f%%, Work blocks(%d/%d)\n", time.Since(startTime).Round(time.Second).String(), percentDone, blocksDone, numWorkBlocks)
 				lastReportedVal = percentDone
 			}
 
