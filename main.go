@@ -13,32 +13,23 @@ import (
 	"golang.org/x/image/tiff"
 )
 
-type XY struct {
-	X, Y float64
-}
-
 const (
-	headlessMode     = true
-	chromaMode       = false
-	lumaMode         = true
-	autoZoom         = true
-	startOffset      = 9900
-	winWidth         = 1280
-	winHeight        = 720
-	superSample      = 2 //max 255
-	maxIters         = 0xFFFF
-	offX             = 0.747926709975882
-	offY             = -0.10785035275635992
-	zoomPow          = 100
-	zoomDiv          = 10000.0
-	escapeVal        = 4.0
-	colorDegPerInter = 10
-	flopDrawSeconds  = 10
-	doJitter         = false
-	fastJitter       = true
-	workBlock        = 16
+	chromaMode  = false
+	lumaMode    = true
+	autoZoom    = true
+	startOffset = 9900
+	winWidth    = 1280
+	winHeight   = 720
+	superSample = 2 //max 255
+	maxIters    = 10000
+	offX        = 0.747926709975882
+	offY        = -0.10785035275635992
+	zoomPow     = 100
+	zoomDiv     = 10000.0
+	escapeVal   = 4.0
+	workBlock   = 16
 
-	gamma = 0.3
+	gamma = 0.25
 )
 
 var (
@@ -55,10 +46,7 @@ var (
 
 	curZoom      float64 = 1.0
 	zoomInt      int     = startOffset
-	frameNum     uint64  = 0
 	lastReported int
-
-	camX, camY float64
 )
 
 type Game struct {
@@ -74,8 +62,8 @@ func main() {
 	offscreen = image.NewRGBA64(image.Rect(0, 0, renderWidth, renderHeight))
 	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
 
-	for column := range palette {
-		palette[column] = uint16(math.Pow(float64(column)/float64(maxIters), gamma) * float64(0xffff))
+	for i := range palette {
+		palette[i] = uint16(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xffff))
 	}
 
 	sStep := (float64(zoomInt) / zoomDiv)
@@ -89,8 +77,11 @@ func main() {
 func updateOffscreen() {
 
 	wg := sizedwaitgroup.New(numThreads)
+
+	ss := uint64(superSample * superSample)
 	numWorkBlocks := (renderWidth / workBlock) * (renderHeight / workBlock)
 	blocksDone := 0
+	lastReported = 0
 
 	for xBlock := 0; xBlock < renderWidth/workBlock; xBlock++ {
 		for yBlock := 0; yBlock < renderHeight/workBlock; yBlock++ {
@@ -100,6 +91,7 @@ func updateOffscreen() {
 				lastReported = int(percentDone)
 				fmt.Printf("%0.2f%%\n", float64(blocksDone)/float64(numWorkBlocks)*100.0)
 			}
+
 			wg.Add()
 			go func(xBlock, yBlock int) {
 				defer wg.Done()
@@ -119,8 +111,8 @@ func updateOffscreen() {
 								ssx := float64(sx) / float64(superSample)
 								ssy := float64(sy) / float64(superSample)
 
-								xx := (((float64(x)+ssx)/float64(renderWidth) - 0.5) / (curZoom)) - camX
-								yy := (((float64(y)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - camY
+								xx := (((float64(x)+ssx)/float64(renderWidth) - 0.5) / (curZoom)) - offX
+								yy := (((float64(y)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - offY
 
 								c := complex(xx, yy) //Rotate
 								z := complex(0, 0)
@@ -136,7 +128,7 @@ func updateOffscreen() {
 								pixel += uint64(it)
 							}
 						}
-						offscreenGray.SetGray16(x, y, color.Gray16{Y: palette[uint16(pixel/(superSample*superSample))]})
+						offscreenGray.SetGray16(x, y, color.Gray16{Y: palette[uint16(pixel/ss)]})
 
 					}
 				}
@@ -174,6 +166,4 @@ func updateOffscreen() {
 			output.Close()
 		}
 	}
-
-	frameNum++
 }
