@@ -15,23 +15,23 @@ import (
 )
 
 const (
-	preIters    = 100
-	maxIters    = 10000
-	insideSkip  = true
+	preIters    = 12
+	maxIters    = 800
 	chromaMode  = false
 	lumaMode    = true
 	autoZoom    = true
 	startOffset = 9800
-	winWidth    = 3840
-	winHeight   = 2160
-	superSample = 16 //max 255
+	winWidth    = 1280
+	winHeight   = 720
+	superSample = 2 //max 255
 	offX        = 0.747926709975882
 	offY        = -0.10785035275635992
 	zoomPow     = 100
 	zoomDiv     = 10000.0
 	escapeVal   = 4.0
+	zoomAdd     = 1
 
-	gamma          = 0.454545
+	gamma          = 0.45454545454545453
 	reportInterval = 1 * time.Second
 	workBlock      = 16
 )
@@ -134,13 +134,13 @@ func updateOffscreen() {
 	wg.Wait()
 
 	if autoZoom {
-		zoomInt = zoomInt + 1
+		zoomInt = zoomInt + zoomAdd
 		sStep := (float64(zoomInt) / zoomDiv)
 		curZoom = (math.Pow(sStep, zoomPow))
 
 		if chromaMode {
 
-			fileName := fmt.Sprintf("out/color-%v.tif", zoomInt)
+			fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
 			output, err := os.Create(fileName)
 			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
 			if tiff.Encode(output, offscreen, opt) != nil {
@@ -151,7 +151,7 @@ func updateOffscreen() {
 		}
 
 		if lumaMode {
-			fileName := fmt.Sprintf("out/luma-%v.tif", zoomInt)
+			fileName := fmt.Sprintf("out/luma-%v.tif", frameCount)
 			output, err := os.Create(fileName)
 			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
 			if tiff.Encode(output, offscreenGray, opt) != nil {
@@ -174,7 +174,7 @@ func iteratePoint(x, y float64) uint32 {
 	var it uint32 = 0
 
 	skip := false
-	for it = 0; it < preIters; it++ {
+	for i := 0; i < preIters; i++ {
 		z = z*z + c
 		if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
 			skip = true
