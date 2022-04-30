@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/remeh/sizedwaitgroup"
 	"golang.org/x/image/tiff"
@@ -18,9 +19,9 @@ const (
 	lumaMode    = true
 	autoZoom    = true
 	startOffset = 9900
-	winWidth    = 1280
-	winHeight   = 720
-	superSample = 2 //max 255
+	winWidth    = 512
+	winHeight   = 512
+	superSample = 8 //max 255
 	maxIters    = 10000
 	offX        = 0.747926709975882
 	offY        = -0.10785035275635992
@@ -29,7 +30,8 @@ const (
 	escapeVal   = 4.0
 	workBlock   = 16
 
-	gamma = 0.25
+	gamma          = 0.25
+	reportInterval = 10 * time.Second
 )
 
 var (
@@ -44,9 +46,10 @@ var (
 
 	numThreads = runtime.NumCPU()
 
-	curZoom      float64 = 1.0
-	zoomInt      int     = startOffset
-	lastReported int
+	curZoom         float64 = 1.0
+	zoomInt         int     = startOffset
+	lastReported    time.Time
+	lastReportedVal float64
 )
 
 type Game struct {
@@ -81,15 +84,16 @@ func updateOffscreen() {
 	ss := uint64(superSample * superSample)
 	numWorkBlocks := (renderWidth / workBlock) * (renderHeight / workBlock)
 	blocksDone := 0
-	lastReported = 0
 
 	for xBlock := 0; xBlock < renderWidth/workBlock; xBlock++ {
 		for yBlock := 0; yBlock < renderHeight/workBlock; yBlock++ {
 			blocksDone++
 			percentDone := (float64(blocksDone) / float64(numWorkBlocks) * 100.0)
-			if lastReported/10 < int(percentDone)/10 && int(percentDone)%10 == 0 {
-				lastReported = int(percentDone)
-				fmt.Printf("%0.2f%%\n", float64(blocksDone)/float64(numWorkBlocks)*100.0)
+
+			if time.Since(lastReported) > reportInterval && lastReportedVal < percentDone {
+				lastReported = time.Now()
+				fmt.Printf("%0.2f%%\n", percentDone)
+				lastReportedVal = percentDone
 			}
 
 			wg.Add()
