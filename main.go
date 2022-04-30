@@ -55,7 +55,7 @@ var (
 	lastReportedVal float64
 	frameCount      int
 
-	workBlock int = 32
+	workBlock int = 64
 )
 
 type Game struct {
