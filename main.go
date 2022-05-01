@@ -25,7 +25,7 @@ const (
 
 	winWidth    = 3840
 	winHeight   = 2160
-	superSample = 16 //max 255
+	superSample = 4 //max 255
 
 	offX      = 0.747926709975882
 	offY      = -0.10785035275635992
@@ -89,8 +89,8 @@ func updateOffscreen() {
 	blocksDone := 0
 	lastReportedVal = 0
 
-	for xBlock := 0; xBlock < renderWidth/workBlock; xBlock++ {
-		for yBlock := 0; yBlock < renderHeight/workBlock; yBlock++ {
+	for xBlock := 0; xBlock <= renderWidth/workBlock; xBlock++ {
+		for yBlock := 0; yBlock <= renderHeight/workBlock; yBlock++ {
 			blocksDone++
 			percentDone := (float64(blocksDone) / float64(numWorkBlocks) * 100.0)
 
