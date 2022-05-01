@@ -122,6 +122,12 @@ func updateOffscreen() {
 				if yEnd > renderHeight {
 					yEnd = renderHeight
 				}
+				if xStart > renderWidth {
+					return
+				}
+				if yStart > renderHeight {
+					return
+				}
 
 				for x := xStart; x < xEnd; x++ {
 					for y := yStart; y < yEnd; y++ {
