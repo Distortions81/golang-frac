@@ -22,15 +22,17 @@ const (
 	lumaMode    = true
 	autoZoom    = true
 	startOffset = 9820
+
 	winWidth    = 3840
 	winHeight   = 2160
 	superSample = 16 //max 255
-	offX        = 0.747926709975882
-	offY        = -0.10785035275635992
-	zoomPow     = 100
-	zoomDiv     = 10000.0
-	escapeVal   = 4.0
-	zoomAdd     = 1
+
+	offX      = 0.747926709975882
+	offY      = -0.10785035275635992
+	zoomPow   = 100
+	zoomDiv   = 10000.0
+	escapeVal = 4.0
+	zoomAdd   = 1
 
 	gamma            = 0.45454545454545453
 	reportInterval   = 1 * time.Second
@@ -112,6 +114,7 @@ func updateOffscreen() {
 				for x := xStart; x < xEnd; x++ {
 					for y := yStart; y < yEnd; y++ {
 						var pixel uint32 = 0
+						var r, g, b uint32
 
 						for sx := 0; sx < superSample; sx++ {
 							for sy := 0; sy < superSample; sy++ {
@@ -122,14 +125,17 @@ func updateOffscreen() {
 								yy := (((float64(y)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - offY
 
 								pixel += iteratePoint(xx, yy)
+
+								tr, tg, tb := colorutil.HsvToRgb(math.Mod(float64(palette[uint16(pixel/ss)]*colorDegPerInter), 360), 1.0, 1.0)
+								r += uint32(tr)
+								g += uint32(tg)
+								b += uint32(tb)
 							}
 						}
 
 						offscreenGray.SetGray16(x, y, color.Gray16{Y: palette[uint16(pixel/ss)]})
 
-						r, g, b := colorutil.HsvToRgb(math.Mod(float64(palette[uint16(pixel/ss)]*colorDegPerInter), 360), 1.0, 1.0)
-
-						offscreen.Set(x, y, color.RGBA{r, g, b, 0xFF})
+						offscreen.Set(x, y, color.RGBA{uint8(r / ss), uint8(g / ss), uint8(b / ss), 0xFF})
 
 					}
 				}
