@@ -107,11 +107,13 @@ func main() {
 					output.Close()
 				}
 
-				/*Clear buffer after completed*/
-				for x := 0; x < renderWidth; x++ {
-					for y := 0; y < renderHeight; y++ {
-						offscreen.Set(x, y, color.RGBA{0, 0, 0, 0})
-						offscreenGray.Set(x, y, color.Gray16{0})
+				if liveUpdate {
+					/*Clear buffer after completed*/
+					for x := 0; x < renderWidth; x++ {
+						for y := 0; y < renderHeight; y++ {
+							offscreen.Set(x, y, color.RGBA{0, 0, 0, 0})
+							offscreenGray.Set(x, y, color.Gray16{0})
+						}
 					}
 				}
 			}
