@@ -74,11 +74,44 @@ func main() {
 	curZoom = (math.Pow(sStep, zoomPow))
 
 	for {
-		updateOffscreen()
+		rendered := updateOffscreen()
+		if autoZoom {
+			zoomInt = zoomInt + zoomAdd
+			sStep := (float64(zoomInt) / zoomDiv)
+			curZoom = (math.Pow(sStep, zoomPow))
+		}
+		frameCount++
+		if rendered {
+			if autoZoom {
+				if chromaMode {
+
+					fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
+					output, err := os.Create(fileName)
+					opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+					if tiff.Encode(output, offscreen, opt) != nil {
+						log.Println("ERROR: Failed to write image:", err)
+						os.Exit(1)
+					}
+					output.Close()
+				}
+
+				if lumaMode {
+					fileName := fmt.Sprintf("out/luma-%v.tif", frameCount)
+					output, err := os.Create(fileName)
+					opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+					if tiff.Encode(output, offscreenGray, opt) != nil {
+						log.Println("ERROR: Failed to write image:", err)
+						os.Exit(1)
+					}
+					output.Close()
+				}
+			}
+			fmt.Println("Completed frame:", frameCount)
+		}
 	}
 }
 
-func updateOffscreen() {
+func updateOffscreen() bool {
 
 	frameTime = time.Now()
 
@@ -88,6 +121,25 @@ func updateOffscreen() {
 	numWorkBlocks := (renderWidth / workBlock) * (renderHeight / workBlock)
 	blocksDone := 0
 	lastReportedVal = 0
+
+	if chromaMode {
+
+		fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
+		_, err := os.Stat(fileName)
+		if err == nil {
+			fmt.Println(fileName, "Exists... Skipping")
+			return false
+		}
+	}
+
+	if lumaMode {
+		fileName := fmt.Sprintf("out/luma-%v.tif", frameCount)
+		_, err := os.Stat(fileName)
+		if err == nil {
+			fmt.Println(fileName, "Exists... Skipping")
+			return false
+		}
+	}
 
 	for xBlock := 0; xBlock <= renderWidth/workBlock; xBlock++ {
 		for yBlock := 0; yBlock <= renderHeight/workBlock; yBlock++ {
@@ -166,37 +218,7 @@ func updateOffscreen() {
 	}
 	wg.Wait()
 
-	if autoZoom {
-		zoomInt = zoomInt + zoomAdd
-		sStep := (float64(zoomInt) / zoomDiv)
-		curZoom = (math.Pow(sStep, zoomPow))
-
-		if chromaMode {
-
-			fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
-			output, err := os.Create(fileName)
-			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-			if tiff.Encode(output, offscreen, opt) != nil {
-				log.Println("ERROR: Failed to write image:", err)
-				os.Exit(1)
-			}
-			output.Close()
-		}
-
-		if lumaMode {
-			fileName := fmt.Sprintf("out/luma-%v.tif", frameCount)
-			output, err := os.Create(fileName)
-			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-			if tiff.Encode(output, offscreenGray, opt) != nil {
-				log.Println("ERROR: Failed to write image:", err)
-				os.Exit(1)
-			}
-			output.Close()
-		}
-	}
-
-	frameCount++
-	fmt.Println("Completed frame:", frameCount)
+	return true
 }
 
 func iteratePoint(x, y float64) uint32 {
