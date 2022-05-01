@@ -23,9 +23,9 @@ const (
 	autoZoom    = true
 	startOffset = 9820
 
-	winWidth    = 3840
-	winHeight   = 2160
-	superSample = 16 //max 16
+	winWidth    = 1280
+	winHeight   = 720
+	superSample = 64 //max 255
 
 	offX      = 0.747926709975882
 	offY      = -0.10785035275635992
