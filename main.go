@@ -36,7 +36,7 @@ const (
 
 	gamma            = 0.45454545454545453
 	reportInterval   = 1 * time.Second
-	workBlock        = 32
+	workBlock        = 128
 	colorDegPerInter = 10
 )
 
