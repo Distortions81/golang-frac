@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/PerformLine/go-stockutil/colorutil"
 	"github.com/remeh/sizedwaitgroup"
 	"golang.org/x/image/tiff"
 )
@@ -17,7 +18,7 @@ import (
 const (
 	preIters    = 15
 	maxIters    = 800
-	chromaMode  = false
+	chromaMode  = true
 	lumaMode    = true
 	autoZoom    = true
 	startOffset = 9820
@@ -31,9 +32,10 @@ const (
 	escapeVal   = 4.0
 	zoomAdd     = 1
 
-	gamma          = 0.45454545454545453
-	reportInterval = 1 * time.Second
-	workBlock      = 16
+	gamma            = 0.45454545454545453
+	reportInterval   = 1 * time.Second
+	workBlock        = 16
+	colorDegPerInter = 10
 )
 
 var (
@@ -124,6 +126,19 @@ func updateOffscreen() {
 						}
 
 						offscreenGray.SetGray16(x, y, color.Gray16{Y: palette[uint16(pixel/ss)]})
+
+						r, g, b := colorutil.HsvToRgb(math.Mod(float64(palette[uint16(pixel/ss)]*colorDegPerInter), 360), 1.0, 1.0)
+						or, og, ob, _ := offscreen.At(x, y).RGBA()
+						if r > 254 {
+							r = 255
+						}
+						if g > 254 {
+							g = 255
+						}
+						if b > 254 {
+							b = 255
+						}
+						offscreen.Set(j, i, color.RGBA64{uint16(uint32(r) + or), uint16(uint32(g) + og), uint16(uint32(b) + ob), 0xFFFF})
 
 					}
 				}
