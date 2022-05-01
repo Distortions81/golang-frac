@@ -25,7 +25,7 @@ const (
 
 	winWidth    = 3840
 	winHeight   = 2160
-	superSample = 16 //max 255
+	superSample = 16 //max 16
 
 	offX      = 0.747926709975882
 	offY      = -0.10785035275635992
@@ -42,10 +42,8 @@ const (
 
 var (
 	palette      [maxIters + 1]uint16
-	renderWidth  int    = winWidth
-	renderHeight int    = winHeight
-	minBright    uint16 = 0xffff
-	maxBright    uint16 = 0x0000
+	renderWidth  int = winWidth
+	renderHeight int = winHeight
 
 	offscreen     *image.RGBA
 	offscreenGray *image.Gray16
@@ -89,6 +87,7 @@ func updateOffscreen() {
 	ss := uint32(superSample * superSample)
 	numWorkBlocks := (renderWidth / workBlock) * (renderHeight / workBlock)
 	blocksDone := 0
+	lastReportedVal = 0
 
 	for xBlock := 0; xBlock < renderWidth/workBlock; xBlock++ {
 		for yBlock := 0; yBlock < renderHeight/workBlock; yBlock++ {
@@ -115,6 +114,9 @@ func updateOffscreen() {
 					for y := yStart; y < yEnd; y++ {
 						var pixel uint32 = 0
 						var r, g, b uint32
+						r = 0
+						g = 0
+						b = 0
 
 						for sx := 0; sx < superSample; sx++ {
 							for sy := 0; sy < superSample; sy++ {
@@ -126,7 +128,7 @@ func updateOffscreen() {
 
 								pixel += iteratePoint(xx, yy)
 
-								tr, tg, tb := colorutil.HsvToRgb(math.Mod(float64(palette[uint16(pixel/ss)]*colorDegPerInter), 360), 1.0, 1.0)
+								tr, tg, tb := colorutil.HsvToRgb(math.Mod(float64(uint16(pixel/ss)*colorDegPerInter), 360), 1.0, 1.0)
 								r += uint32(tr)
 								g += uint32(tg)
 								b += uint32(tb)
