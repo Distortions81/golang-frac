@@ -25,7 +25,7 @@ const (
 
 	winWidth    = 1280
 	winHeight   = 720
-	superSample = 64 //max 255
+	superSample = 32 //max 255
 
 	offX      = 0.747926709975882
 	offY      = -0.10785035275635992
@@ -114,9 +114,6 @@ func updateOffscreen() {
 					for y := yStart; y < yEnd; y++ {
 						var pixel uint32 = 0
 						var r, g, b uint32
-						r = 0
-						g = 0
-						b = 0
 
 						for sx := 0; sx < superSample; sx++ {
 							for sy := 0; sy < superSample; sy++ {
@@ -126,9 +123,10 @@ func updateOffscreen() {
 								xx := (((float64(x)+ssx)/float64(renderWidth) - 0.5) / (curZoom)) - offX
 								yy := (((float64(y)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - offY
 
-								pixel += iteratePoint(xx, yy)
+								t := iteratePoint(xx, yy)
+								pixel += t
 
-								tr, tg, tb := colorutil.HsvToRgb(math.Mod(float64(uint16(pixel/ss)*colorDegPerInter), 360), 1.0, 1.0)
+								tr, tg, tb := colorutil.HsvToRgb(math.Mod(float64(t)*colorDegPerInter, 360), 1.0, 1.0)
 								r += uint32(tr)
 								g += uint32(tg)
 								b += uint32(tb)
