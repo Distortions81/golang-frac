@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	liveUpdate  = true
 	preIters    = 15
 	maxIters    = 800
 	chromaMode  = true
@@ -86,6 +87,18 @@ func main() {
 				if chromaMode {
 
 					fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
+					output, err := os.Create(fileName)
+					opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+					if tiff.Encode(output, offscreen, opt) != nil {
+						log.Println("ERROR: Failed to write image:", err)
+						os.Exit(1)
+					}
+					output.Close()
+				}
+
+				if liveUpdate {
+
+					fileName := fmt.Sprintf("out/live.tiff", frameCount)
 					output, err := os.Create(fileName)
 					opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
 					if tiff.Encode(output, offscreen, opt) != nil {
@@ -183,6 +196,7 @@ func updateOffscreen() bool {
 
 				for x := xStart; x < xEnd; x++ {
 					for y := yStart; y < yEnd; y++ {
+
 						var pixel uint32 = 0
 						var r, g, b uint32
 
@@ -209,11 +223,23 @@ func updateOffscreen() bool {
 						offscreenGray.SetGray16(x, y, color.Gray16{Y: palette[uint16(pixel/ss)]})
 
 						offscreen.Set(x, y, color.RGBA{uint8(r / ss), uint8(g / ss), uint8(b / ss), 0xFF})
-
 					}
 				}
 			}(xBlock, yBlock)
 		}
+		go func() {
+			if liveUpdate {
+
+				fileName := "out/live.tiff"
+				output, err := os.Create(fileName)
+				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+				if tiff.Encode(output, offscreen, opt) != nil {
+					log.Println("ERROR: Failed to write image:", err)
+					os.Exit(1)
+				}
+				output.Close()
+			}
+		}()
 
 	}
 	wg.Wait()
