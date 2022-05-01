@@ -21,10 +21,10 @@ const (
 	chromaMode  = true
 	lumaMode    = true
 	autoZoom    = true
-	startOffset = 9820
+	startOffset = 9850
 
-	winWidth    = 1280
-	winHeight   = 720
+	winWidth    = 3840
+	winHeight   = 2160
 	superSample = 32 //max 255
 
 	offX      = 0.747926709975882
@@ -36,7 +36,7 @@ const (
 
 	gamma            = 0.45454545454545453
 	reportInterval   = 1 * time.Second
-	workBlock        = 16
+	workBlock        = 32
 	colorDegPerInter = 10
 )
 
@@ -110,6 +110,19 @@ func updateOffscreen() {
 				xEnd := xStart + workBlock
 				yEnd := yStart + workBlock
 
+				if xStart < 0 {
+					xStart = 0
+				}
+				if yStart < 0 {
+					yStart = 0
+				}
+				if xEnd > renderWidth {
+					xEnd = renderWidth
+				}
+				if yEnd > renderHeight {
+					yEnd = renderHeight
+				}
+
 				for x := xStart; x < xEnd; x++ {
 					for y := yStart; y < yEnd; y++ {
 						var pixel uint32 = 0
@@ -118,7 +131,9 @@ func updateOffscreen() {
 						for sx := 0; sx < superSample; sx++ {
 							for sy := 0; sy < superSample; sy++ {
 								ssx := float64(sx) / float64(superSample)
+								ssx -= (superSample / 2.0)
 								ssy := float64(sy) / float64(superSample)
+								ssy -= (superSample / 2.0)
 
 								xx := (((float64(x)+ssx)/float64(renderWidth) - 0.5) / (curZoom)) - offX
 								yy := (((float64(y)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - offY
