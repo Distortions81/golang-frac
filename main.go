@@ -96,18 +96,6 @@ func main() {
 					output.Close()
 				}
 
-				if liveUpdate {
-
-					fileName := fmt.Sprintf("out/live.tiff", frameCount)
-					output, err := os.Create(fileName)
-					opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-					if tiff.Encode(output, offscreen, opt) != nil {
-						log.Println("ERROR: Failed to write image:", err)
-						os.Exit(1)
-					}
-					output.Close()
-				}
-
 				if lumaMode {
 					fileName := fmt.Sprintf("out/luma-%v.tif", frameCount)
 					output, err := os.Create(fileName)
@@ -117,6 +105,14 @@ func main() {
 						os.Exit(1)
 					}
 					output.Close()
+				}
+
+				/*Clear buffer after completed*/
+				for x := 0; x < renderWidth; x++ {
+					for y := 0; y < renderHeight; y++ {
+						offscreen.Set(x, y, color.RGBA{0, 0, 0, 0})
+						offscreenGray.Set(x, y, color.Gray16{0})
+					}
 				}
 			}
 			fmt.Println("Completed frame:", frameCount)
