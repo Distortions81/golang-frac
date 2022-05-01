@@ -104,8 +104,8 @@ func updateOffscreen() {
 			go func(xBlock, yBlock int) {
 				defer wg.Done()
 
-				xStart := xBlock * workBlock
-				yStart := yBlock * workBlock
+				xStart := int(math.Round(float64(xBlock * workBlock)))
+				yStart := int(math.Round(float64(yBlock * workBlock)))
 
 				xEnd := xStart + workBlock
 				yEnd := yStart + workBlock
