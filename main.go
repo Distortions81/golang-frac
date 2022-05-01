@@ -128,17 +128,8 @@ func updateOffscreen() {
 						offscreenGray.SetGray16(x, y, color.Gray16{Y: palette[uint16(pixel/ss)]})
 
 						r, g, b := colorutil.HsvToRgb(math.Mod(float64(palette[uint16(pixel/ss)]*colorDegPerInter), 360), 1.0, 1.0)
-						or, og, ob, _ := offscreen.At(x, y).RGBA()
-						if r > 254 {
-							r = 255
-						}
-						if g > 254 {
-							g = 255
-						}
-						if b > 254 {
-							b = 255
-						}
-						offscreen.Set(j, i, color.RGBA64{uint16(uint32(r) + or), uint16(uint32(g) + og), uint16(uint32(b) + ob), 0xFFFF})
+
+						offscreen.Set(x, y, color.RGBA{r, g, b, 0xFF})
 
 					}
 				}
