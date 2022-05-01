@@ -25,7 +25,7 @@ const (
 
 	winWidth    = 3840
 	winHeight   = 2160
-	superSample = 32 //max 255
+	superSample = 16 //max 255
 
 	offX      = 0.747926709975882
 	offY      = -0.10785035275635992
