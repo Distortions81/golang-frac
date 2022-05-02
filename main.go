@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	liveUpdate  = true
+	liveUpdate  = false
 	preIters    = 15
 	maxIters    = 800
 	chromaMode  = true
@@ -24,8 +24,9 @@ const (
 	autoZoom    = true
 	startOffset = 9850
 
-	winWidth    = 3840
-	winHeight   = 2160
+	winWidth  = 3840
+	winHeight = 2160
+	//This is the X/Y size, number of samples is superSample*superSample
 	superSample = 16 //max 255
 
 	offX      = 0.747926709975882
@@ -64,16 +65,20 @@ type Game struct {
 }
 
 func main() {
+	//Alloc images
 	offscreen = image.NewRGBA(image.Rect(0, 0, renderWidth, renderHeight))
 	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
 
+	//Make gamma LUT
 	for i := range palette {
 		palette[i] = uint16(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xffff))
 	}
 
+	//Calculate zoom
 	sStep := (float64(zoomInt) / zoomDiv)
 	curZoom = (math.Pow(sStep, zoomPow))
 
+	//Render loop
 	for {
 		rendered := updateOffscreen()
 		if autoZoom {
@@ -81,7 +86,8 @@ func main() {
 			sStep := (float64(zoomInt) / zoomDiv)
 			curZoom = (math.Pow(sStep, zoomPow))
 		}
-		frameCount++
+
+		//If we have a result (we can skip frames for resume)
 		if rendered {
 			if autoZoom {
 				if chromaMode {
@@ -112,13 +118,13 @@ func main() {
 					for x := 0; x < renderWidth; x++ {
 						for y := 0; y < renderHeight; y++ {
 							offscreen.Set(x, y, color.RGBA{0, 0, 0, 0})
-							offscreenGray.Set(x, y, color.Gray16{0})
 						}
 					}
 				}
 			}
 			fmt.Println("Completed frame:", frameCount)
 		}
+		frameCount++
 	}
 }
 
@@ -225,19 +231,16 @@ func updateOffscreen() bool {
 				}
 			}(xBlock, yBlock)
 		}
-		go func() {
-			if liveUpdate {
+		if liveUpdate {
+			go func() {
 
 				fileName := "out/live.tiff"
-				output, err := os.Create(fileName)
+				output, _ := os.Create(fileName)
 				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-				if tiff.Encode(output, offscreen, opt) != nil {
-					log.Println("ERROR: Failed to write image:", err)
-					os.Exit(1)
-				}
+				tiff.Encode(output, offscreen, opt)
 				output.Close()
-			}
-		}()
+			}()
+		}
 
 	}
 	wg.Wait()
