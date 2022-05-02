@@ -60,6 +60,7 @@ var (
 	lastReportedVal float64
 	frameCount      int
 	pixelCount      uint64
+	pixelCountTotal uint64
 )
 
 type Game struct {
@@ -166,8 +167,10 @@ func updateOffscreen() bool {
 
 			if time.Since(lastReported) > reportInterval && lastReportedVal < percentDone {
 
-				fmt.Printf("%v/%v: %0.2f%%, Work blocks(%d/%d) %vpps\n", time.Since(startTime).Round(time.Second).String(),
-					time.Since(frameTime).Round(time.Second).String(), percentDone, blocksDone, numWorkBlocks, numToString(pixelCount/uint64(time.Since(lastReported).Seconds())))
+				fmt.Printf("%v/%v: %0.2f%%, Work blocks(%d/%d) %vpps (%v)\n", time.Since(startTime).Round(time.Second).String(),
+					time.Since(frameTime).Round(time.Second).String(), percentDone, blocksDone, numWorkBlocks,
+					numToString(pixelCount/uint64(time.Since(lastReported).Seconds())),
+					numToString(pixelCount/uint64(time.Since(lastReported).Seconds())))
 
 				lastReported = time.Now()
 				lastReportedVal = percentDone
@@ -234,7 +237,9 @@ func updateOffscreen() bool {
 						offscreen.Set(x, y, color.RGBA{uint8(r / ss), uint8(g / ss), uint8(b / ss), 0xFF})
 					}
 				}
-				pixelCount += (uint64(xEnd-xStart) * uint64(yEnd-yStart)) * (superSample * superSample)
+				pps := (uint64(xEnd-xStart) * uint64(yEnd-yStart)) * (superSample * superSample)
+				pixelCount += pps
+				pixelCountTotal += pps
 			}(xBlock, yBlock)
 		}
 		if liveUpdate {
