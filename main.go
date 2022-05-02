@@ -67,6 +67,9 @@ type Game struct {
 }
 
 func main() {
+	lastReported = time.Now()
+	startTime = time.Now()
+
 	//Alloc images
 	offscreen = image.NewRGBA(image.Rect(0, 0, renderWidth, renderHeight))
 	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
@@ -132,7 +135,10 @@ func main() {
 
 func updateOffscreen() bool {
 
+	pixelCountTotal = 1
+	pixelCount = 1
 	frameTime = time.Now()
+	time.Sleep(time.Millisecond)
 
 	wg := sizedwaitgroup.New(numThreads)
 
@@ -169,12 +175,12 @@ func updateOffscreen() bool {
 
 				fmt.Printf("%v/%v: %0.2f%%, Work blocks(%d/%d) %vpps (%v)\n", time.Since(startTime).Round(time.Second).String(),
 					time.Since(frameTime).Round(time.Second).String(), percentDone, blocksDone, numWorkBlocks,
-					numToString(pixelCount/uint64(time.Since(lastReported).Seconds())),
-					numToString(pixelCount/uint64(time.Since(lastReported).Seconds())))
+					numToString(float64(pixelCount)/float64(time.Since(lastReported).Milliseconds()/1000.0)),
+					numToString(float64(pixelCountTotal)/float64(time.Since(frameTime).Milliseconds()/1000.0)))
 
 				lastReported = time.Now()
 				lastReportedVal = percentDone
-				pixelCount = 0
+				pixelCount = 1
 			}
 
 			wg.Add()
@@ -286,7 +292,7 @@ func iteratePoint(x, y float64) uint32 {
 
 }
 
-func numToString(num uint64) string {
+func numToString(num float64) string {
 	if num > 1000 {
 		return fmt.Sprintf("%0.2fk", float64(num)/1000.0)
 	} else if num > 1000000 {
