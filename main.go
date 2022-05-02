@@ -37,7 +37,7 @@ const (
 	zoomAdd   = 1
 
 	gamma            = 0.45454545454545453
-	reportInterval   = 1 * time.Second
+	reportInterval   = 30 * time.Second
 	workBlock        = 128
 	colorDegPerInter = 10
 )
@@ -59,6 +59,7 @@ var (
 	lastReported    time.Time
 	lastReportedVal float64
 	frameCount      int
+	pixelCount      uint64
 )
 
 type Game struct {
@@ -135,7 +136,7 @@ func updateOffscreen() bool {
 	wg := sizedwaitgroup.New(numThreads)
 
 	ss := uint32(superSample * superSample)
-	numWorkBlocks := (renderWidth / workBlock) * (renderHeight / workBlock)
+	numWorkBlocks := int(math.Ceil((float64(renderWidth) / float64(workBlock)) * (float64(renderHeight) / float64(workBlock))))
 	blocksDone := 0
 	lastReportedVal = 0
 
@@ -164,9 +165,13 @@ func updateOffscreen() bool {
 			percentDone := (float64(blocksDone) / float64(numWorkBlocks) * 100.0)
 
 			if time.Since(lastReported) > reportInterval && lastReportedVal < percentDone {
+
+				fmt.Printf("%v/%v: %0.2f%%, Work blocks(%d/%d) %vpps\n", time.Since(startTime).Round(time.Second).String(),
+					time.Since(frameTime).Round(time.Second).String(), percentDone, blocksDone, numWorkBlocks, numToString(pixelCount/uint64(time.Since(lastReported).Seconds())))
+
 				lastReported = time.Now()
-				fmt.Printf("%v/%v: %0.2f%%, Work blocks(%d/%d)\n", time.Since(startTime).Round(time.Second).String(), time.Since(frameTime).Round(time.Second).String(), percentDone, blocksDone, numWorkBlocks)
 				lastReportedVal = percentDone
+				pixelCount = 0
 			}
 
 			wg.Add()
@@ -229,11 +234,11 @@ func updateOffscreen() bool {
 						offscreen.Set(x, y, color.RGBA{uint8(r / ss), uint8(g / ss), uint8(b / ss), 0xFF})
 					}
 				}
+				pixelCount += (uint64(xEnd-xStart) * uint64(yEnd-yStart)) * (superSample * superSample)
 			}(xBlock, yBlock)
 		}
 		if liveUpdate {
 			go func() {
-
 				fileName := "out/live.tiff"
 				output, _ := os.Create(fileName)
 				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
@@ -274,4 +279,17 @@ func iteratePoint(x, y float64) uint32 {
 	}
 	return it
 
+}
+
+func numToString(num uint64) string {
+	if num > 1000 {
+		return fmt.Sprintf("%0.2fk", float64(num)/1000.0)
+	} else if num > 1000000 {
+		return fmt.Sprintf("%0.2fM", float64(num)/1000000.0)
+	} else if num > 1000000000 {
+		return fmt.Sprintf("%0.2fG", float64(num)/1000000000.0)
+	} else if num > 1000000000000 {
+		return fmt.Sprintf("%0.2fT", float64(num)/1000000000000.0)
+	}
+	return fmt.Sprintf("%0.2f", float64(num))
 }
