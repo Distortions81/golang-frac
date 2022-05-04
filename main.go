@@ -28,7 +28,7 @@ const (
 	winHeight = 720
 	//This is the X/Y size, number of samples is superSample*superSample
 	superSample = 2 //max 255
-	endFrame    = 4000
+	endFrame    = 4500
 
 	offX      = 0.747926709975882
 	offY      = -0.10785035275635992
@@ -129,10 +129,10 @@ func main() {
 				}
 			}
 			fmt.Println("Completed frame:", frameCount)
-			if frameCount == endFrame {
-				os.Exit(0)
-				return
-			}
+		}
+		if frameCount >= endFrame {
+			os.Exit(0)
+			return
 		}
 		frameCount++
 	}
