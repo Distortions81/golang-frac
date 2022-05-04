@@ -17,17 +17,16 @@ import (
 
 const (
 	liveUpdate  = false
-	preIters    = 15
+	preIters    = 10
 	maxIters    = 800
 	chromaMode  = true
-	lumaMode    = true
 	autoZoom    = true
 	startOffset = 9850
 
 	winWidth  = 1280
 	winHeight = 720
 	//This is the X/Y size, number of samples is superSample*superSample
-	superSample = 2 //max 255
+	superSample = 4 //max 255
 	endFrame    = 4500
 
 	offX      = 0.747926709975882
@@ -35,21 +34,20 @@ const (
 	zoomPow   = 100
 	zoomDiv   = 10000.0
 	escapeVal = 4.0
-	zoomAdd   = 1
+	zoomAdd   = 100
 
-	gamma            = 0.45454545454545453
+	gamma            = 0.8
 	reportInterval   = 30 * time.Second
 	workBlock        = 128
-	colorDegPerInter = 10
+	colorDegPerInter = 4
 )
 
 var (
-	palette      [maxIters + 1]uint16
+	palette      [((maxIters - preIters) + 256) + 1]uint32
 	renderWidth  int = winWidth
 	renderHeight int = winHeight
 
-	offscreen     *image.RGBA
-	offscreenGray *image.Gray16
+	offscreen *image.RGBA64
 
 	numThreads = runtime.NumCPU()
 	startTime  = time.Now()
@@ -72,12 +70,11 @@ func main() {
 	startTime = time.Now()
 
 	//Alloc images
-	offscreen = image.NewRGBA(image.Rect(0, 0, renderWidth, renderHeight))
-	offscreenGray = image.NewGray16(image.Rect(0, 0, renderWidth, renderHeight))
+	offscreen = image.NewRGBA64(image.Rect(0, 0, renderWidth, renderHeight))
 
 	//Make gamma LUT
 	for i := range palette {
-		palette[i] = uint16(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xffff))
+		palette[i] = uint32(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xFFFF))
 	}
 
 	//Calculate zoom
@@ -108,22 +105,11 @@ func main() {
 					output.Close()
 				}
 
-				if lumaMode {
-					fileName := fmt.Sprintf("out/luma-%v.tif", frameCount)
-					output, err := os.Create(fileName)
-					opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-					if tiff.Encode(output, offscreenGray, opt) != nil {
-						log.Println("ERROR: Failed to write image:", err)
-						os.Exit(1)
-					}
-					output.Close()
-				}
-
 				if liveUpdate {
 					/*Clear buffer after completed*/
 					for x := 0; x < renderWidth; x++ {
 						for y := 0; y < renderHeight; y++ {
-							offscreen.Set(x, y, color.RGBA{0, 0, 0, 0})
+							offscreen.Set(x, y, color.RGBA64{0, 0, 0, 0})
 						}
 					}
 				}
@@ -134,7 +120,7 @@ func main() {
 			os.Exit(0)
 			return
 		}
-		frameCount++
+		frameCount += zoomAdd
 	}
 }
 
@@ -155,21 +141,6 @@ func updateOffscreen() bool {
 	if chromaMode {
 
 		fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
-		_, err := os.Stat(fileName)
-		if err == nil {
-			fmt.Println(fileName, "Exists... Skipping")
-			return false
-		} else {
-			_, err := os.Create(fileName)
-			if err != nil {
-				log.Println("ERROR: Failed to create file:", err)
-				return false
-			}
-		}
-	}
-
-	if lumaMode {
-		fileName := fmt.Sprintf("out/luma-%v.tif", frameCount)
 		_, err := os.Stat(fileName)
 		if err == nil {
 			fmt.Println(fileName, "Exists... Skipping")
@@ -246,18 +217,20 @@ func updateOffscreen() bool {
 								yy := (((float64(y)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - offY
 
 								t := iteratePoint(xx, yy)
-								pixel += t
+								if t > 1 {
+									if t < maxIters-preIters-1 {
+										pixel += t
 
-								tr, tg, tb := colorutil.HsvToRgb(math.Mod(float64(t)*colorDegPerInter, 360), 1.0, 1.0)
-								r += uint32(tr)
-								g += uint32(tg)
-								b += uint32(tb)
+										tr, tg, tb := colorutil.HsvToRgb(math.Mod(float64(t)*colorDegPerInter, 360.0), 1.0, 1.0)
+										r += uint32(tr)
+										g += uint32(tg)
+										b += uint32(tb)
+									}
+								}
 							}
 						}
 
-						offscreenGray.SetGray16(x, y, color.Gray16{Y: palette[uint16(pixel/ss)]})
-
-						offscreen.Set(x, y, color.RGBA{uint8(r / ss), uint8(g / ss), uint8(b / ss), 0xFF})
+						offscreen.Set(x, y, color.RGBA64{uint16(palette[(r/ss)+pixel/ss]), uint16(palette[(g/ss)+pixel/ss]), uint16(palette[(b/ss)+pixel/ss]), 0xFFFF})
 					}
 				}
 				pps := (uint64(xEnd-xStart) * uint64(yEnd-yStart)) * (superSample * superSample)
