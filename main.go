@@ -159,6 +159,12 @@ func updateOffscreen() bool {
 		if err == nil {
 			fmt.Println(fileName, "Exists... Skipping")
 			return false
+		} else {
+			_, err := os.Create(fileName)
+			if err != nil {
+				log.Println("ERROR: Failed to create file:", err)
+				return false
+			}
 		}
 	}
 
@@ -168,6 +174,12 @@ func updateOffscreen() bool {
 		if err == nil {
 			fmt.Println(fileName, "Exists... Skipping")
 			return false
+		} else {
+			_, err := os.Create(fileName)
+			if err != nil {
+				log.Println("ERROR: Failed to create file:", err)
+				return false
+			}
 		}
 	}
 
