@@ -24,10 +24,11 @@ const (
 	autoZoom    = true
 	startOffset = 9850
 
-	winWidth  = 3840
-	winHeight = 2160
+	winWidth  = 1280
+	winHeight = 720
 	//This is the X/Y size, number of samples is superSample*superSample
-	superSample = 16 //max 255
+	superSample = 2 //max 255
+	endFrame    = 5000
 
 	offX      = 0.747926709975882
 	offY      = -0.10785035275635992
@@ -128,6 +129,10 @@ func main() {
 				}
 			}
 			fmt.Println("Completed frame:", frameCount)
+			if frameCount == endFrame {
+				os.Exit(0)
+				return
+			}
 		}
 		frameCount++
 	}
