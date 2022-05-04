@@ -2,3 +2,4 @@
 golang-frac
 golang-frac
 out/*
+sshfs.sh
