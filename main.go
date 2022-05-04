@@ -34,7 +34,7 @@ const (
 	zoomPow   = 100
 	zoomDiv   = 10000.0
 	escapeVal = 4.0
-	zoomAdd   = 100
+	zoomAdd   = 1
 
 	gamma            = 0.8
 	reportInterval   = 30 * time.Second
