@@ -28,7 +28,7 @@ const (
 	winHeight = 720
 	//This is the X/Y size, number of samples is superSample*superSample
 	superSample = 2 //max 255
-	endFrame    = 5000
+	endFrame    = 4000
 
 	offX      = 0.747926709975882
 	offY      = -0.10785035275635992
