@@ -23,10 +23,10 @@ const (
 	autoZoom    = true
 	startOffset = 9850
 
-	winWidth  = 1280
-	winHeight = 720
+	winWidth  = 3840
+	winHeight = 2160
 	//This is the X/Y size, number of samples is superSample*superSample
-	superSample = 4 //max 255
+	superSample = 32 //max 255
 	endFrame    = 4500
 
 	offX      = 0.747926709975882
