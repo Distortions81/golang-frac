@@ -1,3 +1,4 @@
 *.log
 out/*
 golang-frac
+sshfs.sh
