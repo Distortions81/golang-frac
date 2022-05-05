@@ -172,6 +172,7 @@ func updateOffscreen() bool {
 			}
 
 			wg.Add()
+			time.Sleep(time.Millisecond)
 			go func(xBlock, yBlock int) {
 				defer wg.Done()
 
