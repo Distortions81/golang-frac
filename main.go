@@ -102,6 +102,7 @@ func main() {
 	offscreen = ebiten.NewImage(renderWidth, renderHeight)
 
 	go func() {
+		time.Sleep(time.Second * 2)
 		for {
 			updateOffscreen()
 			time.Sleep(time.Millisecond)
@@ -133,20 +134,21 @@ func updateOffscreen() {
 				c = complex(x, y) //Rotate
 				z = complex(0, 0)
 
+				skipped := false
 				for it = 0; it < maxIters; it++ {
 					z = z*z + c
 					if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
 						offscreen.Set(j, i, color.RGBA{palette[it], palette[it], palette[it], 0xFF})
+						skipped = true
 						break
 					}
-					offscreen.Set(j, i, color.RGBA{0, 0, 0, 0xFF})
 				}
-				//offscreen.Set(j, i, color.RGBA{palette[it], palette[it], palette[it], 0xFF})
+				if !skipped {
+					offscreen.Set(j, i, color.RGBA{palette[it], palette[it], palette[it], 0xFF})
+				}
 			}
 		}(j)
 		wg.Wait()
 	}
-}
-
-func init() {
+}				var it
 }
