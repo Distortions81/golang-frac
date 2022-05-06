@@ -21,22 +21,22 @@ const (
 	maxIters    = 800
 	chromaMode  = true
 	autoZoom    = true
-	startOffset = 9850
+	startOffset = 9800
 
-	winWidth  = 3840
-	winHeight = 2160
+	winWidth  = 960
+	winHeight = 540
 	//This is the X/Y size, number of samples is superSample*superSample
 	superSample = 8 //max 255
-	endFrame    = 4500
+	endFrame    = 4000
 
-	offX      = 0.747926709975882
-	offY      = -0.10785035275635992
+	offX      = 0.06794359923818309
+	offY      = 0.8932606802951797
 	zoomPow   = 100
 	zoomDiv   = 10000.0
 	escapeVal = 4.0
 	zoomAdd   = 1
 
-	gamma            = 0.8
+	gamma            = 1.0
 	reportInterval   = 30 * time.Second
 	workBlock        = 128
 	colorDegPerInter = 4
@@ -231,7 +231,7 @@ func updateOffscreen() bool {
 							}
 						}
 
-						offscreen.Set(x, y, color.RGBA64{uint16(palette[(r/ss)+pixel/ss]), uint16(palette[(g/ss)+pixel/ss]), uint16(palette[(b/ss)+pixel/ss]), 0xFFFF})
+						offscreen.Set(x, y, color.RGBA64{uint16(palette[(r/ss)/2+(pixel/ss)/2]), uint16(palette[(g/ss)/2+(pixel/ss)/2]), uint16(palette[(b/ss)/2+(pixel/ss)/2]), 0xFFFF})
 					}
 				}
 				pps := (uint64(xEnd-xStart) * uint64(yEnd-yStart)) * (superSample * superSample)
@@ -275,11 +275,11 @@ func iteratePoint(x, y float64) uint32 {
 		for it = 0; it < iters; it++ {
 			z = z*z + c
 			if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
-				break
+				return it
 			}
 		}
 	}
-	return it
+	return 0
 
 }
 
