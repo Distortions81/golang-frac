@@ -78,7 +78,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(pixMag, pixMag)
 	screen.DrawImage(offscreen, op)
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (click drag to move, wheel to zoom) %f,%f", ebiten.CurrentFPS(), camX, camY))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (click drag to move, wheel to zoom) %v,%v", ebiten.CurrentFPS(), camX, camY))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -150,5 +150,4 @@ func updateOffscreen() {
 		}(j)
 		wg.Wait()
 	}
-}				var it
 }
