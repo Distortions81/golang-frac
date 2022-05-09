@@ -30,12 +30,12 @@ const (
 	superSample = 3 //max 255
 	endFrame    = 5400
 
-	offX      = 0.06794359923818309
-	offY      = 0.8932606802951797
+	offX      = 0.6135090622704931
+	offY      = -0.6775767173961638
 	zoomPow   = 100.0
 	zoomDiv   = 10000.0 / zspeepdiv
 	escapeVal = 4.0
-	zoomAdd   = 1
+	zoomAdd   = 50
 
 	gamma            = 0.8
 	reportInterval   = 30 * time.Second
