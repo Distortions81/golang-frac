@@ -24,10 +24,10 @@ const (
 	zspeepdiv   = 0.7
 	startOffset = 9800.0 / zspeepdiv
 
-	winWidth  = 640
-	winHeight = 360
+	winWidth  = 3840
+	winHeight = 2160
 	//This is the X/Y size, number of samples is superSample*superSample
-	superSample = 3 //max 255
+	superSample = 4 //max 255
 	endFrame    = 5400
 
 	offX      = 0.6135090622704931
@@ -35,7 +35,7 @@ const (
 	zoomPow   = 100.0
 	zoomDiv   = 10000.0 / zspeepdiv
 	escapeVal = 4.0
-	zoomAdd   = 50
+	zoomAdd   = 1
 
 	gamma            = 0.8
 	reportInterval   = 30 * time.Second
