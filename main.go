@@ -22,46 +22,66 @@ const (
 	preIters = 10
 	//Even at max zoom (quantized around 10^15 zoom), this seems to be enough
 	maxIters = 800
-)
 
-var (
 	//Resolution of the output image
-	imgWidth  float64 = 3840
-	imgHeight float64 = 2160
+	DimgWidth  = 3840
+	DimgHeight = 2160
 
 	//This is the X,Y size, number of samples per pixel is superSample*superSample
-	superSample float64 = 16 //max 255 (255*255=65kSample)
+	DsuperSample = 16 //max 255 (255*255=65kSample)
 
 	//Stop rendering at this frame
-	endFrame float64 = 3600
+	DendFrame = 3600
 
 	//Area of interest
-	offX float64 = 0.6135090622704931
-	offY float64 = -0.6775767173961638
+	DoffX = 0.6135090622704931
+	DoffY = -0.6775767173961638
 
 	//Pow 100 is constant speed
-	zoomPow float64 = 100.0
+	DzoomPow = 100.0
 
 	//Rendering optimize
-	escapeVal float64 = 4.0
+	DescapeVal = 4.0
 
 	//Zoom multiplier for quick animation previews
-	zoomAdd float64 = 1
+	DzoomAdd = 1
 
 	//Gamma settings for color and luma. 0.4545... is standard 2.2
-	gammaLuma   float64 = 0.4545454545454545
-	gammaChroma float64 = 1.0
+	DgammaLuma   = 0.4545454545454545
+	DgammaChroma = 1.0
 
 	//Pixel x,y size for each thread
 	//Smaller blocks prevent idle threads near end of image render
 	//Really helps process scheduler on windows
-	workBlock float64 = 64
+	DworkBlock = 64
+
+	//How much color rotates (in degrees) per iteration
+	DcolorDegPerInter = 15.0
+
+	//zoom speed divisor
+	DzSpeedDiv = 0.6
+)
+
+var (
+	imgWidth         *float64
+	imgHeight        *float64
+	superSample      *float64
+	endFrame         *float64
+	offX             *float64
+	offY             *float64
+	zoomPow          *float64
+	escapeVal        *float64
+	gammaLuma        *float64
+	gammaChroma      *float64
+	zoomAdd          *float64
+	zSpeedDiv        *float64
+	colorDegPerInter *int
+	numThreads       *float64
+	workBlock        *float64
+
 	//Sleep this long before starting a new thread
 	//Doesn't affect performance that much, but helps multitasking
 	threadSleep time.Duration = time.Millisecond
-
-	//How much color rotates (in degrees) per iteration
-	colorDegPerInter uint32 = 15.0
 
 	//Gamma LUT tables
 	paletteL [(maxIters - preIters) + 1]uint32
@@ -70,30 +90,18 @@ var (
 	//Image buffer
 	offscreen *image.RGBA64
 
-	//Detect number of threads
-	numThreads = runtime.NumCPU()
-
-	//zoom speed divisor
-	zspeepdiv float64 = 0.6
-
 	//Current zoom level
 	curZoom float64 = 1.0
-
 	//zoom step size
-	zoomDiv float64 = 10000.0 / zspeepdiv
-
+	zoomDiv float64
 	//Integer zoom is based on
-	zoomInt float64 = 9800 / zspeepdiv
-
+	zoomInt float64
 	//Frame count
 	frameCount float64 = 0
-
 	//Multithread group
 	wg sizedwaitgroup.SizedWaitGroup
-
 	//Divide by this to get average pixel color for supersampling
 	numSamples uint32
-
 	//number of times to iterate a sample
 	numIters uint32
 )
@@ -102,37 +110,45 @@ type Game struct {
 }
 
 func main() {
-	flag.Float64("width", imgWidth, "Width of output image")
-	flag.Float64("height", imgHeight, "Height of output image")
-	flag.Float64("super", superSample, "Super sampling factor")
-	flag.Float64("end", endFrame, "End frame")
-	flag.Float64("offx", offX, "X offset")
-	flag.Float64("offy", offY, "Y offset")
-	flag.Float64("zoom", zoomPow, "Zoom power")
-	flag.Float64("escape", escapeVal, "Escape value")
-	flag.Float64("gammaLuma", gammaLuma, "Luma gamma")
-	flag.Float64("gammaChroma", gammaChroma, "Chroma gamma")
-	flag.Float64("zoomAdd", zoomAdd, "Zoom step size")
-	flag.Float64("zspeepdiv", zspeepdiv, "Zoom speed divisor")
-	flag.Int("colorDegPerInter", int(colorDegPerInter), "Color rotation per iteration")
-	flag.Int("numThreads", int(numThreads), "Number of threads")
-	flag.Int("workBlock", int(workBlock), "Work block size (x*y)")
+
+	DnumThreads := float64(runtime.NumCPU())
+
+	imgWidth = flag.Float64("width", DimgWidth, "Width of output image")
+	imgHeight = flag.Float64("height", DimgHeight, "Height of output image")
+	superSample = flag.Float64("super", DsuperSample, "Super sampling factor")
+	endFrame = flag.Float64("end", DendFrame, "End frame")
+	offX = flag.Float64("offx", DoffX, "X offset")
+	offY = flag.Float64("offy", DoffY, "Y offset")
+	zoomPow = flag.Float64("zoom", DzoomPow, "Zoom power")
+	escapeVal = flag.Float64("escape", DescapeVal, "Escape value")
+	gammaLuma = flag.Float64("gammaLuma", DgammaLuma, "Luma gamma")
+	gammaChroma = flag.Float64("gammaChroma", DgammaChroma, "Chroma gamma")
+	zoomAdd = flag.Float64("zoomAdd", DzoomAdd, "Zoom step size")
+	zSpeedDiv = flag.Float64("zSpeedDiv", DzSpeedDiv, "Zoom speed divisor")
+	colorDegPerInter = flag.Int("colorDegPerInter", DcolorDegPerInter, "Color rotation per iteration")
+	numThreads = flag.Float64("numThreads", DnumThreads, "Number of threads")
+	workBlock = flag.Float64("workBlock", DworkBlock, "Work block size (x*y)")
 	flag.Parse()
 
+	//zoom step size
+	zoomDiv = 10000.0 / *zSpeedDiv
+	//Integer zoom is based on
+	zoomInt = 9800 / *zSpeedDiv
+
 	//Alloc images
-	offscreen = image.NewRGBA64(image.Rect(0, 0, int(imgWidth), int(imgHeight)))
+	offscreen = image.NewRGBA64(image.Rect(0, 0, int(*imgWidth), int(*imgHeight)))
 
 	//Setup
-	wg = sizedwaitgroup.New(numThreads)
-	numSamples = uint32(superSample * superSample)
+	wg = sizedwaitgroup.New(int(*numThreads))
+	numSamples = uint32(int(*superSample) * int(*superSample))
 	numIters = maxIters - preIters
 
 	//Make gamma LUTs
 	for i := range paletteL {
-		paletteL[i] = uint32(math.Pow(float64(i)/float64(numIters), gammaLuma) * 0xFFFF)
+		paletteL[i] = uint32(math.Pow(float64(i)/float64(numIters), *gammaLuma) * 0xFFFF)
 	}
 	for i := range paletteC {
-		paletteC[i] = uint32(math.Pow(float64(i)/float64(0xFF), gammaChroma) * 0xFFFF)
+		paletteC[i] = uint32(math.Pow(float64(i)/float64(0xFF), *gammaChroma) * 0xFFFF)
 	}
 
 	//Zoom needs a pre-calculation
@@ -161,7 +177,7 @@ func main() {
 
 			fmt.Println("Completed frame:", frameCount)
 		}
-		if frameCount >= endFrame {
+		if frameCount >= *endFrame {
 			fmt.Println("Rendering complete")
 			os.Exit(0)
 			return
@@ -189,8 +205,8 @@ func updateOffscreen() bool {
 	}
 
 	var xBlock, yBlock float64
-	for xBlock = 0; xBlock <= imgWidth/workBlock; xBlock++ {
-		for yBlock = 0; yBlock <= imgHeight/workBlock; yBlock++ {
+	for xBlock = 0; xBlock <= *imgWidth / *workBlock; xBlock++ {
+		for yBlock = 0; yBlock <= *imgHeight / *workBlock; yBlock++ {
 
 			wg.Add()
 			time.Sleep(threadSleep) //Give process manager a moment
@@ -198,11 +214,11 @@ func updateOffscreen() bool {
 				defer wg.Done()
 
 				//Create a block of pixels for the thread to work on
-				xStart := xBlock * workBlock
-				yStart := yBlock * workBlock
+				xStart := xBlock * *workBlock
+				yStart := yBlock * *workBlock
 
-				xEnd := xStart + workBlock
-				yEnd := yStart + workBlock
+				xEnd := xStart + *workBlock
+				yEnd := yStart + *workBlock
 
 				//Don't render off the screen
 				if xStart < 0 {
@@ -211,18 +227,18 @@ func updateOffscreen() bool {
 				if yStart < 0 {
 					yStart = 0
 				}
-				if xEnd > imgWidth {
-					xEnd = imgWidth
+				if xEnd > *imgWidth {
+					xEnd = *imgWidth
 				}
-				if yEnd > imgHeight {
-					yEnd = imgHeight
+				if yEnd > *imgHeight {
+					yEnd = *imgHeight
 				}
 
 				//If the block is off the screen entirely, skip it
-				if xStart > imgWidth {
+				if xStart > *imgWidth {
 					return
 				}
-				if yStart > imgHeight {
+				if yStart > *imgHeight {
 					return
 				}
 
@@ -235,15 +251,15 @@ func updateOffscreen() bool {
 						var sx, sy float64
 
 						//Supersample
-						for sx = 0; sx < superSample; sx++ {
-							for sy = 0; sy < superSample; sy++ {
+						for sx = 0; sx < *superSample; sx++ {
+							for sy = 0; sy < *superSample; sy++ {
 								//Get the sub-pixel position
-								ssx := float64(sx) / float64(superSample)
-								ssy := float64(sy) / float64(superSample)
+								ssx := float64(sx) / float64(*superSample)
+								ssy := float64(sy) / float64(*superSample)
 
 								//Translate to position on the mandelbrot
-								xx := ((((float64(x) + ssx) / imgWidth) - 0.5) / curZoom) - offX
-								yy := ((((float64(y) + ssy) / imgWidth) - 0.3) / curZoom) - offY
+								xx := ((((float64(x) + ssx) / *imgWidth) - 0.5) / curZoom) - *offX
+								yy := ((((float64(y) + ssy) / *imgWidth) - 0.3) / curZoom) - *offY
 
 								c := complex(xx, yy) //Rotate
 								z := complex(0, 0)
@@ -256,7 +272,7 @@ func updateOffscreen() bool {
 								//Speed + asthetic choice
 								for i := 0; i < preIters; i++ {
 									z = z*z + c
-									if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+									if real(z)*real(z)+imag(z)*imag(z) > *escapeVal {
 										skip = true
 										break
 									}
@@ -266,7 +282,7 @@ func updateOffscreen() bool {
 								if !skip {
 									for it = 0; it < numIters; it++ {
 										z = z*z + c
-										if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+										if real(z)*real(z)+imag(z)*imag(z) > *escapeVal {
 											found = true
 											break
 										}
@@ -280,7 +296,7 @@ func updateOffscreen() bool {
 									//We later divide to get the average for super-sampling
 									pixel += paletteL[it]
 
-									tr, tg, tb := colorutil.HsvToRgb(float64((it*colorDegPerInter)%360), 1.0, 1.0)
+									tr, tg, tb := colorutil.HsvToRgb(float64(it*uint32(*colorDegPerInter)%360), 1.0, 1.0)
 									//We already gamma corrected, so use gamma 1.0 for chroma
 									//But still convert from 8 bits to 16, to match the luma
 									r += paletteC[tr]
@@ -306,7 +322,7 @@ func updateOffscreen() bool {
 }
 
 func calcZoom() {
-	zoomInt = zoomInt + zoomAdd
+	zoomInt = zoomInt + *zoomAdd
 	sStep := zoomInt / zoomDiv
-	curZoom = math.Pow(sStep, zoomPow)
+	curZoom = math.Pow(sStep, *zoomPow)
 }
