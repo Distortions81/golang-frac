@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
@@ -101,6 +102,23 @@ type Game struct {
 }
 
 func main() {
+	flag.Float64("width", imgWidth, "Width of output image")
+	flag.Float64("height", imgHeight, "Height of output image")
+	flag.Float64("super", superSample, "Super sampling factor")
+	flag.Float64("end", endFrame, "End frame")
+	flag.Float64("offx", offX, "X offset")
+	flag.Float64("offy", offY, "Y offset")
+	flag.Float64("zoom", zoomPow, "Zoom power")
+	flag.Float64("escape", escapeVal, "Escape value")
+	flag.Float64("gammaLuma", gammaLuma, "Luma gamma")
+	flag.Float64("gammaChroma", gammaChroma, "Chroma gamma")
+	flag.Float64("zoomAdd", zoomAdd, "Zoom step size")
+	flag.Float64("zspeepdiv", zspeepdiv, "Zoom speed divisor")
+	flag.Int("colorDegPerInter", int(colorDegPerInter), "Color rotation per iteration")
+	flag.Int("numThreads", int(numThreads), "Number of threads")
+	flag.Int("workBlock", int(workBlock), "Work block size (x*y)")
+	flag.Parse()
+
 	//Alloc images
 	offscreen = image.NewRGBA64(image.Rect(0, 0, int(imgWidth), int(imgHeight)))
 
