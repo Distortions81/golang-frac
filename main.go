@@ -46,7 +46,7 @@ var (
 	escapeVal float64 = 4.0
 
 	//Zoom multiplier for quick animation previews
-	zoomAdd float64 = 50
+	zoomAdd float64 = 1
 
 	//Gamma settings for color and luma. 0.4545... is standard 2.2
 	gammaLuma   float64 = 0.4545454545454545
