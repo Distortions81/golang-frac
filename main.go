@@ -15,10 +15,10 @@ import (
 
 const (
 	startOffset = 985
-	winWidth    = 1024
-	winHeight   = 1024
-	pixMag      = 2
-	maxIters    = 1000
+	winWidth    = 2048
+	winHeight   = 2048
+	pixMag      = 4
+	maxIters    = 790
 	zoomPow     = 100
 	zoomDiv     = 1000.0
 	escapeVal   = 4.0
@@ -33,7 +33,7 @@ var (
 	offscreen *ebiten.Image
 
 	curZoom                float64 = 1.0
-	gamma                          = 0.8
+	gamma                          = 1.0
 	zoomInt                int     = startOffset
 	lastMouseX, lastMouseY int
 
@@ -114,7 +114,6 @@ func main() {
 	}
 }
 
-var r, g, b uint8
 var x, y float64
 var c, z complex128
 var j, i, it int
@@ -138,13 +137,13 @@ func updateOffscreen() {
 				for it = 0; it < maxIters; it++ {
 					z = z*z + c
 					if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
-						offscreen.Set(j, i, color.RGBA{palette[it], palette[it], palette[it], 0xFF})
+						offscreen.Set(j, i, color.Gray{palette[it]})
 						skipped = true
 						break
 					}
 				}
 				if !skipped {
-					offscreen.Set(j, i, color.RGBA{palette[it], palette[it], palette[it], 0xFF})
+					offscreen.Set(j, i, color.Gray{0})
 				}
 			}
 		}(j)
