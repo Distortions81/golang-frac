@@ -1,1 +1,0 @@
-If several perimeter points, and a few inner samples are in mandelbrot set, skip render tile.
