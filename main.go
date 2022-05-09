@@ -21,29 +21,30 @@ const (
 	maxIters    = 800
 	chromaMode  = true
 	autoZoom    = true
-	startOffset = 9800
+	zspeepdiv   = 0.7
+	startOffset = 9800.0 / zspeepdiv
 
-	winWidth  = 3840
-	winHeight = 2160
+	winWidth  = 640
+	winHeight = 360
 	//This is the X/Y size, number of samples is superSample*superSample
-	superSample = 8 //max 255
-	endFrame    = 4200
+	superSample = 3 //max 255
+	endFrame    = 5400
 
 	offX      = 0.06794359923818309
 	offY      = 0.8932606802951797
-	zoomPow   = 100
-	zoomDiv   = 10000.0
+	zoomPow   = 100.0
+	zoomDiv   = 10000.0 / zspeepdiv
 	escapeVal = 4.0
 	zoomAdd   = 1
 
-	gamma            = 1.0
+	gamma            = 0.8
 	reportInterval   = 30 * time.Second
-	workBlock        = 128
-	colorDegPerInter = 4
+	workBlock        = 64
+	colorDegPerInter = 3.0
 )
 
 var (
-	palette      [((maxIters - preIters) + 256) + 1]uint32
+	paletteL     [(maxIters - preIters) + 1]uint32
 	renderWidth  int = winWidth
 	renderHeight int = winHeight
 
@@ -73,8 +74,8 @@ func main() {
 	offscreen = image.NewRGBA64(image.Rect(0, 0, renderWidth, renderHeight))
 
 	//Make gamma LUT
-	for i := range palette {
-		palette[i] = uint32(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xFFFF))
+	for i := range paletteL {
+		paletteL[i] = uint32(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xFFFF))
 	}
 
 	//Calculate zoom
@@ -120,7 +121,7 @@ func main() {
 			os.Exit(0)
 			return
 		}
-		frameCount += zoomAdd
+		frameCount++
 	}
 }
 
@@ -218,20 +219,19 @@ func updateOffscreen() bool {
 								yy := (((float64(y)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - offY
 
 								t := iteratePoint(xx, yy)
-								if t > 1 {
-									if t < maxIters-preIters-1 {
-										pixel += t
+								if t > 0 {
+									pixel += t
 
-										tr, tg, tb := colorutil.HsvToRgb(math.Mod(float64(t)*colorDegPerInter, 360.0), 1.0, 1.0)
-										r += uint32(tr)
-										g += uint32(tg)
-										b += uint32(tb)
-									}
+									tr, tg, tb := colorutil.HsvToRgb(math.Mod(float64(t)*colorDegPerInter, 360.0), 1.0, 1.0)
+
+									r += uint32(tr) << 6
+									g += uint32(tg) << 6
+									b += uint32(tb) << 6
 								}
 							}
 						}
 
-						offscreen.Set(x, y, color.RGBA64{uint16(palette[(r/ss)/2+(pixel/ss)/2]), uint16(palette[(g/ss)/2+(pixel/ss)/2]), uint16(palette[(b/ss)/2+(pixel/ss)/2]), 0xFFFF})
+						offscreen.Set(x, y, color.RGBA64{uint16((r/ss)/2 + paletteL[(pixel/ss)]/2), uint16((g/ss)/2 + paletteL[(pixel/ss)]/2), uint16((b/ss)/2 + paletteL[(pixel/ss)]/2), 0xFFFF})
 					}
 				}
 				pps := (uint64(xEnd-xStart) * uint64(yEnd-yStart)) * (superSample * superSample)
