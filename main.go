@@ -8,7 +8,6 @@ import (
 	"math"
 	"os"
 	"runtime"
-	"time"
 
 	"github.com/PerformLine/go-stockutil/colorutil"
 	"github.com/remeh/sizedwaitgroup"
@@ -16,108 +15,132 @@ import (
 )
 
 const (
-	liveUpdate  = false
-	preIters    = 10
-	maxIters    = 800
-	chromaMode  = true
-	autoZoom    = true
-	zspeepdiv   = 0.7
-	startOffset = 9800.0 / zspeepdiv
-
-	winWidth  = 3840
-	winHeight = 2160
-	//This is the X/Y size, number of samples is superSample*superSample
-	superSample = 4 //max 255
-	endFrame    = 5400
-
-	offX      = 0.6135090622704931
-	offY      = -0.6775767173961638
-	zoomPow   = 100.0
-	zoomDiv   = 10000.0 / zspeepdiv
-	escapeVal = 4.0
-	zoomAdd   = 1
-
-	gamma            = 0.8
-	reportInterval   = 30 * time.Second
-	workBlock        = 64
-	colorDegPerInter = 3.0
+	//Pre-iteraton removes the large circle around the mandelbrot
+	//I think this looks nicer, and it is a bit quicker
+	preIters = 10
+	//Even at max zoom (quantized around 10^15 zoom), this seems to be enough
+	maxIters = 800
 )
 
 var (
-	paletteL     [(maxIters - preIters) + 1]uint32
-	renderWidth  int = winWidth
-	renderHeight int = winHeight
+	//Resolution of the output image
+	imgWidth  float64 = 3840
+	imgHeight float64 = 2160
 
+	//This is the X,Y size, number of samples per pixel is superSample*superSample
+	superSample float64 = 16 //max 255 (255*255=65kSample)
+
+	//Stop rendering at this frame
+	endFrame float64 = 3600
+
+	//Area of interest
+	offX float64 = 0.6135090622704931
+	offY float64 = -0.6775767173961638
+
+	//Pow 100 is constant speed
+	zoomPow float64 = 100.0
+
+	//Rendering optimize
+	escapeVal float64 = 4.0
+
+	//Zoom multiplier for quick animation previews
+	zoomAdd float64 = 50
+
+	//Gamma settings for color and luma. 0.4545... is standard 2.2
+	gammaLuma   float64 = 0.4545454545454545
+	gammaChroma float64 = 1.0
+
+	//Pixel x,y size for each thread
+	//Smaller blocks prevent idle threads near end of image render
+	//Really helps process scheduler on windows
+	workBlock float64 = 64
+
+	//How much color rotates (in degrees) per iteration
+	colorDegPerInter uint32 = 15.0
+
+	//Gamma LUT tables
+	paletteL [(maxIters - preIters) + 1]uint32
+	paletteC [0xFF + 1]uint32
+
+	//Image buffer
 	offscreen *image.RGBA64
 
+	//Detect number of threads
 	numThreads = runtime.NumCPU()
-	startTime  = time.Now()
-	frameTime  = time.Now()
 
-	curZoom         float64 = 1.0
-	zoomInt         int     = startOffset
-	lastReported    time.Time
-	lastReportedVal float64
-	frameCount      int
-	pixelCount      uint64
-	pixelCountTotal uint64
+	//zoom speed divisor
+	zspeepdiv float64 = 0.6
+
+	//Current zoom level
+	curZoom float64 = 1.0
+
+	//zoom step size
+	zoomDiv float64 = 10000.0 / zspeepdiv
+
+	//Integer zoom is based on
+	zoomInt float64 = 9800/zspeepdiv + 1000
+
+	//Frame count
+	frameCount float64 = 0
+
+	//Multithread group
+	wg sizedwaitgroup.SizedWaitGroup
+
+	//Divide by this to get average pixel color for supersampling
+	numSamples uint32
+
+	//number of times to iterate a sample
+	numIters uint32
 )
 
 type Game struct {
 }
 
 func main() {
-	lastReported = time.Now()
-	startTime = time.Now()
-
 	//Alloc images
-	offscreen = image.NewRGBA64(image.Rect(0, 0, renderWidth, renderHeight))
+	offscreen = image.NewRGBA64(image.Rect(0, 0, int(imgWidth), int(imgHeight)))
 
-	//Make gamma LUT
+	//Setup
+	wg = sizedwaitgroup.New(numThreads)
+	numSamples = uint32(superSample * superSample)
+	numIters = maxIters - preIters
+
+	//Make gamma LUTs
 	for i := range paletteL {
-		paletteL[i] = uint32(math.Pow(float64(i)/float64(maxIters), gamma) * float64(0xFFFF))
+		paletteL[i] = uint32(math.Pow(float64(i)/float64(numIters), gammaLuma) * 0xFFFF)
+	}
+	for i := range paletteC {
+		paletteC[i] = uint32(math.Pow(float64(i)/float64(0xFF), gammaChroma) * 0xFFFF)
 	}
 
-	//Calculate zoom
-	sStep := (float64(zoomInt) / zoomDiv)
-	curZoom = (math.Pow(sStep, zoomPow))
+	//Zoom needs a pre-calculation
+	calcZoom()
 
 	//Render loop
 	for {
+		//Render frame
 		rendered := updateOffscreen()
-		if autoZoom {
-			zoomInt = zoomInt + zoomAdd
-			sStep := (float64(zoomInt) / zoomDiv)
-			curZoom = (math.Pow(sStep, zoomPow))
-		}
 
-		//If we have a result (we can skip frames for resume)
+		//Update zoom for next frame
+		calcZoom()
+
+		//If we have a result, write it
+		//(we can skip frames for resume and multi-machine rendering)
 		if rendered {
-			if autoZoom {
-				if chromaMode {
 
-					fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
-					output, err := os.Create(fileName)
-					opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-					if tiff.Encode(output, offscreen, opt) != nil {
-						log.Println("ERROR: Failed to write image:", err)
-						os.Exit(1)
-					}
-					output.Close()
-				}
-
-				if liveUpdate {
-					/*Clear buffer after completed*/
-					for x := 0; x < renderWidth; x++ {
-						for y := 0; y < renderHeight; y++ {
-							offscreen.Set(x, y, color.RGBA64{0, 0, 0, 0})
-						}
-					}
-				}
+			fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
+			output, err := os.Create(fileName)
+			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+			if tiff.Encode(output, offscreen, opt) != nil {
+				log.Println("ERROR: Failed to write image:", err)
+				os.Exit(1)
 			}
+			output.Close()
+
 			fmt.Println("Completed frame:", frameCount)
 		}
 		if frameCount >= endFrame {
+			fmt.Println("Rendering complete")
 			os.Exit(0)
 			return
 		}
@@ -127,171 +150,138 @@ func main() {
 
 func updateOffscreen() bool {
 
-	pixelCountTotal = 1
-	pixelCount = 1
-	frameTime = time.Now()
-	time.Sleep(time.Millisecond)
-
-	wg := sizedwaitgroup.New(numThreads)
-
-	ss := uint32(superSample * superSample)
-	numWorkBlocks := int(math.Ceil((float64(renderWidth) / float64(workBlock)) * (float64(renderHeight) / float64(workBlock))))
-	blocksDone := 0
-	lastReportedVal = 0
-
-	if chromaMode {
-
-		fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
-		_, err := os.Stat(fileName)
-		if err == nil {
-			fmt.Println(fileName, "Exists... Skipping")
+	//Skip frames that already exist
+	//Otherwise make a empty placeholder file to reserve this frame for us
+	//For lazy file-share multi-machine rendering (i use sshfs)
+	fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
+	_, err := os.Stat(fileName)
+	if err == nil {
+		fmt.Println(fileName, "Exists... Skipping")
+		return false
+	} else {
+		_, err := os.Create(fileName)
+		if err != nil {
+			log.Println("ERROR: Failed to create file:", err)
 			return false
-		} else {
-			_, err := os.Create(fileName)
-			if err != nil {
-				log.Println("ERROR: Failed to create file:", err)
-				return false
-			}
 		}
 	}
 
-	for xBlock := 0; xBlock <= renderWidth/workBlock; xBlock++ {
-		for yBlock := 0; yBlock <= renderHeight/workBlock; yBlock++ {
-			blocksDone++
-			percentDone := (float64(blocksDone) / float64(numWorkBlocks) * 100.0)
-
-			if time.Since(lastReported) > reportInterval && lastReportedVal < percentDone {
-
-				fmt.Printf("%v/%v: %0.2f%%, Work blocks(%d/%d) %vpps (%v)\n", time.Since(startTime).Round(time.Second).String(),
-					time.Since(frameTime).Round(time.Second).String(), percentDone, blocksDone, numWorkBlocks,
-					numToString(float64(pixelCount)/float64(time.Since(lastReported).Milliseconds()/1000.0)),
-					numToString(float64(pixelCountTotal)/float64(time.Since(frameTime).Milliseconds()/1000.0)))
-
-				lastReported = time.Now()
-				lastReportedVal = percentDone
-				pixelCount = 1
-			}
+	var xBlock, yBlock float64
+	for xBlock = 0; xBlock <= imgWidth/workBlock; xBlock++ {
+		for yBlock = 0; yBlock <= imgHeight/workBlock; yBlock++ {
 
 			wg.Add()
-			time.Sleep(time.Millisecond)
-			go func(xBlock, yBlock int) {
+			go func(xBlock, yBlock float64) {
 				defer wg.Done()
 
-				xStart := int(math.Round(float64(xBlock * workBlock)))
-				yStart := int(math.Round(float64(yBlock * workBlock)))
+				//Create a block of pixels for the thread to work on
+				xStart := xBlock * workBlock
+				yStart := yBlock * workBlock
 
 				xEnd := xStart + workBlock
 				yEnd := yStart + workBlock
 
+				//Don't render off the screen
 				if xStart < 0 {
 					xStart = 0
 				}
 				if yStart < 0 {
 					yStart = 0
 				}
-				if xEnd > renderWidth {
-					xEnd = renderWidth
+				if xEnd > imgWidth {
+					xEnd = imgWidth
 				}
-				if yEnd > renderHeight {
-					yEnd = renderHeight
+				if yEnd > imgHeight {
+					yEnd = imgHeight
 				}
-				if xStart > renderWidth {
+
+				//If the block is off the screen entirely, skip it
+				if xStart > imgWidth {
 					return
 				}
-				if yStart > renderHeight {
+				if yStart > imgHeight {
 					return
 				}
 
+				//Render the block
 				for x := xStart; x < xEnd; x++ {
 					for y := yStart; y < yEnd; y++ {
 
 						var pixel uint32 = 0
 						var r, g, b uint32
+						var sx, sy float64
 
-						for sx := 0; sx < superSample; sx++ {
-							for sy := 0; sy < superSample; sy++ {
+						//Supersample
+						for sx = 0; sx < superSample; sx++ {
+							for sy = 0; sy < superSample; sy++ {
+								//Get the sub-pixel position
 								ssx := float64(sx) / float64(superSample)
-								ssx -= (superSample / 2.0)
 								ssy := float64(sy) / float64(superSample)
-								ssy -= (superSample / 2.0)
 
-								xx := (((float64(x)+ssx)/float64(renderWidth) - 0.5) / (curZoom)) - offX
-								yy := (((float64(y)+ssy)/float64(renderWidth) - 0.3) / (curZoom)) - offY
+								//Translate to position on the mandelbrot
+								xx := ((((float64(x) + ssx) / imgWidth) - 0.5) / curZoom) - offX
+								yy := ((((float64(y) + ssy) / imgWidth) - 0.3) / curZoom) - offY
 
-								t := iteratePoint(xx, yy)
-								if t > 0 {
-									pixel += t
+								c := complex(xx, yy) //Rotate
+								z := complex(0, 0)
 
-									tr, tg, tb := colorutil.HsvToRgb(math.Mod(float64(t)*colorDegPerInter, 360.0), 1.0, 1.0)
+								var it uint32 = 0
+								skip := false
 
-									r += uint32(tr) << 6
-									g += uint32(tg) << 6
-									b += uint32(tb) << 6
+								//Pre-interate (no draw)
+								//Speed + asthetic choice
+								for i := 0; i < preIters; i++ {
+									z = z*z + c
+									if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+										skip = true
+										break
+									}
+								}
+
+								//Don't render at all if we escaped in the pre-iteration.
+								if !skip {
+									for it = 0; it < numIters; it++ {
+										z = z*z + c
+										if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+											break
+										}
+									}
+								}
+
+								//Don't render if we didn't escape
+								//This allows background to be black
+								if it > 0 {
+									//Add the value ( gamma correct ) to the total
+									//We later divide to get the average for super-sampling
+									pixel += paletteL[it]
+
+									tr, tg, tb := colorutil.HsvToRgb(float64((it*colorDegPerInter)%360), 1.0, 1.0)
+									//We already gamma corrected, so use gamma 1.0 for chroma
+									//But still convert from 8 bits to 16, to match the luma
+									r += paletteC[tr]
+									g += paletteC[tg]
+									b += paletteC[tb]
 								}
 							}
 						}
 
-						offscreen.Set(x, y, color.RGBA64{uint16((r/ss)/2 + paletteL[(pixel/ss)]/2), uint16((g/ss)/2 + paletteL[(pixel/ss)]/2), uint16((b/ss)/2 + paletteL[(pixel/ss)]/2), 0xFFFF})
+						//Add the pixel to the buffer, divide by number of samples for super-sampling
+						offscreen.Set(int(x), int(y), color.RGBA64{
+							uint16((r/numSamples)/2 + (pixel/numSamples)/2),
+							uint16((g/numSamples)/2 + (pixel/numSamples)/2),
+							uint16((b/numSamples)/2 + (pixel/numSamples)/2), 0xFFFF})
 					}
 				}
-				pps := (uint64(xEnd-xStart) * uint64(yEnd-yStart)) * (superSample * superSample)
-				pixelCount += pps
-				pixelCountTotal += pps
 			}(xBlock, yBlock)
 		}
-		if liveUpdate {
-			go func() {
-				fileName := "out/live.tiff"
-				output, _ := os.Create(fileName)
-				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-				tiff.Encode(output, offscreen, opt)
-				output.Close()
-			}()
-		}
-
 	}
 	wg.Wait()
 
 	return true
 }
 
-func iteratePoint(x, y float64) uint32 {
-
-	c := complex(x, y) //Rotate
-	z := complex(0, 0)
-
-	var it uint32 = 0
-
-	skip := false
-	for i := 0; i < preIters; i++ {
-		z = z*z + c
-		if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
-			skip = true
-			break
-		}
-	}
-	var iters uint32 = maxIters - preIters
-	if !skip {
-		for it = 0; it < iters; it++ {
-			z = z*z + c
-			if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
-				return it
-			}
-		}
-	}
-	return 0
-
-}
-
-func numToString(num float64) string {
-	if num > 1000 {
-		return fmt.Sprintf("%0.2fk", float64(num)/1000.0)
-	} else if num > 1000000 {
-		return fmt.Sprintf("%0.2fM", float64(num)/1000000.0)
-	} else if num > 1000000000 {
-		return fmt.Sprintf("%0.2fG", float64(num)/1000000000.0)
-	} else if num > 1000000000000 {
-		return fmt.Sprintf("%0.2fT", float64(num)/1000000000000.0)
-	}
-	return fmt.Sprintf("%0.2f", float64(num))
+func calcZoom() {
+	zoomInt = zoomInt + zoomAdd
+	sStep := zoomInt / zoomDiv
+	curZoom = math.Pow(sStep, zoomPow)
 }
