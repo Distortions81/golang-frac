@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/PerformLine/go-stockutil/colorutil"
 	"github.com/remeh/sizedwaitgroup"
@@ -54,6 +55,9 @@ var (
 	//Smaller blocks prevent idle threads near end of image render
 	//Really helps process scheduler on windows
 	workBlock float64 = 64
+	//Sleep this long before starting a new thread
+	//Doesn't affect performance that much, but helps multitasking
+	threadSleep time.Duration = time.Millisecond
 
 	//How much color rotates (in degrees) per iteration
 	colorDegPerInter uint32 = 15.0
@@ -78,7 +82,7 @@ var (
 	zoomDiv float64 = 10000.0 / zspeepdiv
 
 	//Integer zoom is based on
-	zoomInt float64 = 9800/zspeepdiv + 1000
+	zoomInt float64 = 9800 / zspeepdiv
 
 	//Frame count
 	frameCount float64 = 0
@@ -171,6 +175,7 @@ func updateOffscreen() bool {
 		for yBlock = 0; yBlock <= imgHeight/workBlock; yBlock++ {
 
 			wg.Add()
+			time.Sleep(threadSleep) //Give process manager a moment
 			go func(xBlock, yBlock float64) {
 				defer wg.Done()
 
@@ -227,6 +232,7 @@ func updateOffscreen() bool {
 
 								var it uint32 = 0
 								skip := false
+								found := false
 
 								//Pre-interate (no draw)
 								//Speed + asthetic choice
@@ -243,14 +249,15 @@ func updateOffscreen() bool {
 									for it = 0; it < numIters; it++ {
 										z = z*z + c
 										if real(z)*real(z)+imag(z)*imag(z) > escapeVal {
+											found = true
 											break
 										}
 									}
 								}
 
 								//Don't render if we didn't escape
-								//This allows background to be black
-								if it > 0 {
+								//This allows background and bulb to be black
+								if found {
 									//Add the value ( gamma correct ) to the total
 									//We later divide to get the average for super-sampling
 									pixel += paletteL[it]
