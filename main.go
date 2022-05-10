@@ -59,7 +59,7 @@ const (
 	DcolorDegPerInter = 15.0
 
 	//zoom speed divisor
-	DzSpeedDiv = 0.6
+	DzSpeedDiv = 1.1
 )
 
 var (
