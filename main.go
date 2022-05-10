@@ -17,6 +17,11 @@ import (
 )
 
 const (
+	//For adjusting chroma
+	DcolorExposure   = 0xFF
+	DcolorBrightness = 0.5
+	DcolorSaturation = 0.8
+
 	//Pre-iteraton removes the large circle around the mandelbrot
 	//I think this looks nicer, and it is a bit quicker
 	preIters = 10
@@ -47,7 +52,7 @@ const (
 	DzoomAdd = 1
 
 	//Gamma settings for color and luma. 0.4545... is standard 2.2
-	DgammaLuma   = 0.4545454545454545
+	DgammaLuma   = 0.5
 	DgammaChroma = 1.0
 
 	//Pixel x,y size for each thread
@@ -56,7 +61,7 @@ const (
 	DworkBlock = 64
 
 	//How much color rotates (in degrees) per iteration
-	DcolorDegPerInter = 15.0
+	DcolorDegPerInter = 5
 
 	//zoom speed divisor
 	DzSpeedDiv = 1.1
@@ -78,6 +83,8 @@ var (
 	colorDegPerInter *int
 	numThreads       *float64
 	workBlock        *float64
+	colorBrightness  *float64
+	colorSaturation  *float64
 
 	//Sleep this long before starting a new thread
 	//Doesn't affect performance that much, but helps multitasking
@@ -85,7 +92,7 @@ var (
 
 	//Gamma LUT tables
 	paletteL [(maxIters - preIters) + 1]uint32
-	paletteC [0xFF + 1]uint32
+	paletteC [DcolorExposure + 1]uint32
 
 	//Image buffer
 	offscreen *image.RGBA64
@@ -128,6 +135,8 @@ func main() {
 	colorDegPerInter = flag.Int("colorDegPerInter", DcolorDegPerInter, "Color rotation per iteration")
 	numThreads = flag.Float64("numThreads", DnumThreads, "Number of threads")
 	workBlock = flag.Float64("workBlock", DworkBlock, "Work block size (x*y)")
+	colorBrightness = flag.Float64("colorBrightness", DcolorBrightness, "HSV brightness of the chroma.")
+	colorSaturation = flag.Float64("colorSaturation", DcolorSaturation, "HSV saturation of the chroma.")
 	flag.Parse()
 
 	//zoom step size
@@ -148,7 +157,7 @@ func main() {
 		paletteL[i] = uint32(math.Pow(float64(i)/float64(numIters), *gammaLuma) * 0xFFFF)
 	}
 	for i := range paletteC {
-		paletteC[i] = uint32(math.Pow(float64(i)/float64(0xFF), *gammaChroma) * 0xFFFF)
+		paletteC[i] = uint32(math.Pow(float64(i)/float64(DcolorExposure), *gammaChroma) * 0xFFFF)
 	}
 
 	//Zoom needs a pre-calculation
@@ -296,7 +305,7 @@ func updateOffscreen() bool {
 									//We later divide to get the average for super-sampling
 									pixel += paletteL[it]
 
-									tr, tg, tb := colorutil.HsvToRgb(float64(it*uint32(*colorDegPerInter)%360), 1.0, 1.0)
+									tr, tg, tb := colorutil.HsvToRgb(float64(it*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
 									//We already gamma corrected, so use gamma 1.0 for chroma
 									//But still convert from 8 bits to 16, to match the luma
 									r += paletteC[tr]
