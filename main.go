@@ -55,7 +55,7 @@ const (
 	DzoomAdd = 1
 
 	//Gamma settings for color and luma. 0.4545... is standard 2.2
-	DgammaLuma   = 0.5
+	DgammaLuma   = 0.454545
 	DgammaChroma = 1.0
 
 	//Pixel x,y size for each thread
@@ -324,11 +324,8 @@ func updateOffscreen() bool {
 									//We later divide to get the average for super-sampling
 									pixel += paletteL[it]
 
-									//replaced colorutil, but still needs improvement
-									rt, gt, bt := hsv2rgbf(float64(it)*float64(*colorDegPerInter), *colorSaturation, *colorBrightness)
-									r += rt
-									g += gt
-									b += bt
+									//replaced colorutil, adds value via pointer, higher accuracy.
+									hsv2rgbf(it*uint32(*colorDegPerInter), *colorSaturation, *colorBrightness, &r, &g, &b)
 								}
 							}
 						}
@@ -355,10 +352,10 @@ func calcZoom() {
 	curZoom = math.Pow(sStep, *zoomPow)
 }
 
-func hsv2rgbf(h, sat, val float64) (r, g, b float64) {
+func hsv2rgbf(h uint32, sat, val float64, ri, gi, bi *float64) {
 
 	chroma := (1 - math.Abs((2*val)-1)) * sat
-	hue := math.Mod(h, 360)
+	hue := math.Mod(float64(h), 360)
 	hueSector := hue / 60
 
 	intermediate := chroma * (1 - math.Abs(
@@ -367,37 +364,29 @@ func hsv2rgbf(h, sat, val float64) (r, g, b float64) {
 
 	switch {
 	case hueSector >= 0 && hueSector <= 1:
-		r = chroma
-		g = intermediate
-		b = 0
+		*ri += chroma
+		*gi += intermediate
 
 	case hueSector > 1 && hueSector <= 2:
-		r = intermediate
-		g = chroma
-		b = 0
+		*ri += intermediate
+		*gi += chroma
 
 	case hueSector > 2 && hueSector <= 3:
-		r = 0
-		g = chroma
-		b = intermediate
+		*gi += chroma
+		*bi += intermediate
 
 	case hueSector > 3 && hueSector <= 4:
-		r = 0
-		g = intermediate
-		b = chroma
+		*gi += intermediate
+		*bi += chroma
 	case hueSector > 4 && hueSector <= 5:
-		r = intermediate
-		g = 0
-		b = chroma
+		*ri += intermediate
+		*bi += chroma
 
 	case hueSector > 5 && hueSector <= 6:
-		r = chroma
-		g = 0
-		b = intermediate
+		*ri += chroma
+		*bi += intermediate
 
 	default:
 		panic(fmt.Errorf("hue input %v yielded sector %v", hue, hueSector))
 	}
-
-	return r, g, b
 }
