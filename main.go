@@ -23,7 +23,7 @@ const (
 	//Underexpose for color reasons
 	DcolorBrightness = 0.5
 	//Desaturate a bit
-	DcolorSaturation = 0.7
+	DcolorSaturation = 0.8
 
 	//Pre-iteraton removes the large circle around the mandelbrot
 	//I think this looks nicer, and it is a bit quicker
@@ -55,7 +55,7 @@ const (
 	DzoomAdd = 1
 
 	//Gamma settings for color and luma. 0.4545... is standard 2.2
-	DgammaLuma = 0.45454545
+	DgammaLuma = 0.5
 
 	//Pixel x,y size for each thread
 	//Smaller blocks prevent idle threads near end of image render
