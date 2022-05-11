@@ -260,67 +260,65 @@ func updateOffscreen() bool {
 				}
 
 				//Render the block
+				var sx, sy, ssx, ssy, cx, cy float64
+				var it uint32
 				for x := xStart; x < xEnd; x++ {
 					for y := yStart; y < yEnd; y++ {
 
 						var pixel uint32 = 0
 						var r, g, b uint32
-						var sx, sy float64
 
 						//Supersample
 						for sx = 0; sx < *superSample; sx++ {
 							for sy = 0; sy < *superSample; sy++ {
 								//Get the sub-pixel position
-								ssx := float64(sx) / float64(*superSample)
-								ssy := float64(sy) / float64(*superSample)
+								ssx = float64(sx) / float64(*superSample)
+								ssy = float64(sy) / float64(*superSample)
 								//Translate to position on the mandelbrot
-								cx := ((((float64(x) + ssx) / *imgWidth) - 0.5) / curZoom) - *offX
-								cy := ((((float64(y) + ssy) / *imgWidth) - 0.3) / curZoom) - *offY
+								cx = ((((float64(x) + ssx) / *imgWidth) - 0.5) / curZoom) - *offX
+								cy = ((((float64(y) + ssy) / *imgWidth) - 0.3) / curZoom) - *offY
 
-								var it uint32
-								var tempx, zx, zy float64
-								found := false
-								skip := false
+								var tempx, zx, zy, zzx, zzy float64
 
+								//Preiteration, don't draw.
 								for it = 0; it < preIters; it++ {
-									zzx := zx * zx
-									zzy := zy * zy
+									zzx = zx * zx
+									zzy = zy * zy
 									if zzx+zzy > 4 {
-										skip = true
+										return
+									}
+									tempx = zzx - zzy + cx
+									zy = 2*zx*zy + cy
+									zx = tempx
+								}
+
+								for it = 0; it < numIters; it++ {
+									//Requires a copy, but halves calculation
+									zzx = zx * zx
+									zzy = zy * zy
+									if zzx+zzy > *escapeVal {
 										break
 									}
 									tempx = zzx - zzy + cx
 									zy = 2*zx*zy + cy
 									zx = tempx
 								}
-								if !skip {
-									for it = 0; it < numIters; it++ {
-										zzx := zx * zx
-										zzy := zy * zy
-										if zzx+zzy > *escapeVal {
-											found = true
-											break
-										}
-										tempx = zzx - zzy + cx
-										zy = 2*zx*zy + cy
-										zx = tempx
-									}
-								}
 
 								//Don't render if we didn't escape
 								//This allows background and bulb to be black
-								if found {
-									//Add the value ( gamma correct ) to the total
-									//We later divide to get the average for super-sampling
-									pixel += paletteL[it]
+								//Add the value ( gamma correct ) to the total
+								//We later divide to get the average for super-sampling
+								pixel += paletteL[it]
 
-									tr, tg, tb := colorutil.HsvToRgb(float64(it*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
-									//We already gamma corrected, so use gamma 1.0 for chroma
-									//But still convert from 8 bits to 16, to match the luma
-									r += paletteC[tr]
-									g += paletteC[tg]
-									b += paletteC[tb]
-								}
+								//Would be nice if this returned a pointer instead, this could be faster
+								tr, tg, tb := colorutil.HsvToRgb(float64(it*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
+
+								//We already gamma corrected, so use gamma 1.0 for chroma
+								//But still convert from 8 bits to 16, to match the luma
+								r += paletteC[tr]
+								g += paletteC[tg]
+								b += paletteC[tb]
+
 							}
 						}
 
