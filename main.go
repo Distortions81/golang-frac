@@ -23,7 +23,7 @@ const (
 	//Underexpose for color reasons
 	DcolorBrightness = 0.5
 	//Desaturate a bit
-	DcolorSaturation = 0.8
+	DcolorSaturation = 0.7
 
 	//Pre-iteraton removes the large circle around the mandelbrot
 	//I think this looks nicer, and it is a bit quicker
@@ -55,8 +55,7 @@ const (
 	DzoomAdd = 1
 
 	//Gamma settings for color and luma. 0.4545... is standard 2.2
-	DgammaLuma   = 0.454545
-	DgammaChroma = 1.0
+	DgammaLuma = 0.45454545
 
 	//Pixel x,y size for each thread
 	//Smaller blocks prevent idle threads near end of image render
@@ -81,7 +80,6 @@ var (
 	zoomPow          *float64
 	escapeVal        *float64
 	gammaLuma        *float64
-	gammaChroma      *float64
 	zoomAdd          *float64
 	zSpeedDiv        *float64
 	colorDegPerInter *float64
@@ -95,8 +93,7 @@ var (
 	threadSleep time.Duration = time.Millisecond
 
 	//Gamma LUT tables
-	paletteL [(maxIters - preIters) + 1]uint32
-	paletteC [DExposure + 1]uint32
+	paletteL [maxIters - preIters + 1]uint32
 
 	//Image buffer
 	offscreen *image.RGBA64
@@ -135,7 +132,6 @@ func main() {
 	zoomPow = flag.Float64("zoom", DzoomPow, "Zoom power")
 	escapeVal = flag.Float64("escape", DescapeVal, "Escape value")
 	gammaLuma = flag.Float64("gammaLuma", DgammaLuma, "Luma gamma")
-	gammaChroma = flag.Float64("gammaChroma", DgammaChroma, "Chroma gamma")
 	zoomAdd = flag.Float64("zoomAdd", DzoomAdd, "Zoom step size")
 	zSpeedDiv = flag.Float64("zSpeedDiv", DzSpeedDiv, "Zoom speed divisor")
 	colorDegPerInter = flag.Float64("colorDegPerInter", DcolorDegPerInter, "Color rotation per iteration")
@@ -168,9 +164,6 @@ func main() {
 	//Make gamma LUTs
 	for i := range paletteL {
 		paletteL[i] = uint32(math.Pow(float64(i)/float64(numIters), *gammaLuma) * DExposure)
-	}
-	for i := range paletteC {
-		paletteC[i] = uint32(math.Pow(float64(i)/float64(DExposure), *gammaChroma) * DExposure)
 	}
 
 	//Zoom needs a pre-calculation
@@ -325,16 +318,16 @@ func updateOffscreen() bool {
 									pixel += paletteL[it]
 
 									//replaced colorutil, adds value via pointer, higher accuracy.
-									hsv2rgbf(it*uint32(*colorDegPerInter), *colorSaturation, *colorBrightness, &r, &g, &b)
+									hsv2rgbf(&it, &r, &g, &b)
 								}
 							}
 						}
 
 						//Add the pixel to the buffer, divide by number of samples for super-sampling
 						offscreen.Set(int(x), int(y), color.RGBA64{
-							uint16(paletteC[uint32(r*DExposure)/numSamplesInt] + paletteC[pixel/numSamplesInt]),
-							uint16(paletteC[uint32(g*DExposure)/numSamplesInt] + paletteC[pixel/numSamplesInt]),
-							uint16(paletteC[uint32(b*DExposure)/numSamplesInt] + paletteC[pixel/numSamplesInt]), 0xFFFF})
+							uint16(uint32(float64(r/numSamples)*DExposure) + uint32((pixel)/numSamplesInt)),
+							uint16(uint32(float64(g/numSamples)*DExposure) + uint32((pixel)/numSamplesInt)),
+							uint16(uint32(float64(b/numSamples)*DExposure) + uint32((pixel)/numSamplesInt)), 0xFFFF})
 
 					}
 				}
@@ -352,10 +345,10 @@ func calcZoom() {
 	curZoom = math.Pow(sStep, *zoomPow)
 }
 
-func hsv2rgbf(h uint32, sat, val float64, ri, gi, bi *float64) {
+func hsv2rgbf(it *uint32, ri, gi, bi *float64) {
 
-	chroma := (1 - math.Abs((2*val)-1)) * sat
-	hue := math.Mod(float64(h), 360)
+	chroma := (*colorBrightness) * (*colorSaturation)
+	hue := math.Mod(float64(float64(*it)*(*colorDegPerInter)), 360)
 	hueSector := hue / 60
 
 	intermediate := chroma * (1 - math.Abs(
@@ -389,4 +382,10 @@ func hsv2rgbf(h uint32, sat, val float64, ri, gi, bi *float64) {
 	default:
 		panic(fmt.Errorf("hue input %v yielded sector %v", hue, hueSector))
 	}
+
+	m := *colorBrightness - chroma
+
+	*ri += m
+	*gi += m
+	*bi += m
 }
