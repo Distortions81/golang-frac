@@ -23,7 +23,7 @@ const (
 	//Underexpose for color reasons
 	DcolorBrightness = 0.5
 	//Desaturate a bit
-	DcolorSaturation = 0.8
+	DcolorSaturation = 0.85
 
 	//Pre-iteraton removes the large circle around the mandelbrot
 	//I think this looks nicer, and it is a bit quicker
@@ -90,7 +90,7 @@ var (
 
 	//Sleep this long before starting a new thread
 	//Doesn't affect performance that much, but helps multitasking
-	threadSleep time.Duration = time.Millisecond
+	threadSleep time.Duration = time.Microsecond * 100
 
 	//Gamma LUT tables
 	paletteL [maxIters - preIters + 1]uint32
@@ -310,7 +310,7 @@ func updateOffscreen() bool {
 									}
 								}
 
-								if found {
+								if found && it > 0 {
 									//Don't render if we didn't escape
 									//This allows background and bulb to be black
 									//Add the value ( gamma correct ) to the total
