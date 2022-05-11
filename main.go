@@ -18,6 +18,7 @@ import (
 
 const (
 	//For adjusting chroma
+	DoutDir          = "out"
 	DcolorExposure   = 0xFF
 	DcolorBrightness = 0.5
 	DcolorSaturation = 0.8
@@ -68,6 +69,7 @@ const (
 )
 
 var (
+	outDir           *string
 	imgWidth         *float64
 	imgHeight        *float64
 	superSample      *float64
@@ -120,6 +122,7 @@ func main() {
 
 	DnumThreads := float64(runtime.NumCPU())
 
+	outDir = flag.String("outDir", DoutDir, "output directory name")
 	imgWidth = flag.Float64("width", DimgWidth, "Width of output image")
 	imgHeight = flag.Float64("height", DimgHeight, "Height of output image")
 	superSample = flag.Float64("super", DsuperSample, "Super sampling factor")
@@ -138,6 +141,11 @@ func main() {
 	colorBrightness = flag.Float64("colorBrightness", DcolorBrightness, "HSV brightness of the chroma.")
 	colorSaturation = flag.Float64("colorSaturation", DcolorSaturation, "HSV saturation of the chroma.")
 	flag.Parse()
+
+	err := os.MkdirAll(*outDir, os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
 
 	//zoom step size
 	zoomDiv = 10000.0 / *zSpeedDiv
@@ -175,7 +183,7 @@ func main() {
 		//(we can skip frames for resume and multi-machine rendering)
 		if rendered {
 
-			fileName := fmt.Sprintf("out2/color-%v.tif", frameCount)
+			fileName := fmt.Sprintf("%v/color-%v.tif", *outDir, frameCount)
 			output, err := os.Create(fileName)
 			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
 			if tiff.Encode(output, offscreen, opt) != nil {
@@ -200,7 +208,7 @@ func updateOffscreen() bool {
 	//Skip frames that already exist
 	//Otherwise make a empty placeholder file to reserve this frame for us
 	//For lazy file-share multi-machine rendering (i use sshfs)
-	fileName := fmt.Sprintf("out2/color-%v.tif", frameCount)
+	fileName := fmt.Sprintf("%v/color-%v.tif", *outDir, frameCount)
 	_, err := os.Stat(fileName)
 	if err == nil {
 		fmt.Println(fileName, "Exists... Skipping")
@@ -301,7 +309,7 @@ func updateOffscreen() bool {
 
 								//Don't render if we didn't escape
 								//This allows background and bulb to be black
-								if found && it > 0 {
+								if found {
 									//Add the value ( gamma correct ) to the total
 									//We later divide to get the average for super-sampling
 									pixel += paletteL[it]

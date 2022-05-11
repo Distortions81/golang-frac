@@ -1,2 +1,3 @@
-out/*
+*.tif
 sshfs.sh
+golang-frac
