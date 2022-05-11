@@ -175,7 +175,7 @@ func main() {
 		//(we can skip frames for resume and multi-machine rendering)
 		if rendered {
 
-			fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
+			fileName := fmt.Sprintf("out2/color-%v.tif", frameCount)
 			output, err := os.Create(fileName)
 			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
 			if tiff.Encode(output, offscreen, opt) != nil {
@@ -200,7 +200,7 @@ func updateOffscreen() bool {
 	//Skip frames that already exist
 	//Otherwise make a empty placeholder file to reserve this frame for us
 	//For lazy file-share multi-machine rendering (i use sshfs)
-	fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
+	fileName := fmt.Sprintf("out2/color-%v.tif", frameCount)
 	_, err := os.Stat(fileName)
 	if err == nil {
 		fmt.Println(fileName, "Exists... Skipping")
@@ -265,42 +265,43 @@ func updateOffscreen() bool {
 								//Get the sub-pixel position
 								ssx := float64(sx) / float64(*superSample)
 								ssy := float64(sy) / float64(*superSample)
-
 								//Translate to position on the mandelbrot
-								xx := ((((float64(x) + ssx) / *imgWidth) - 0.5) / curZoom) - *offX
-								yy := ((((float64(y) + ssy) / *imgWidth) - 0.3) / curZoom) - *offY
+								cx := ((((float64(x) + ssx) / *imgWidth) - 0.5) / curZoom) - *offX
+								cy := ((((float64(y) + ssy) / *imgWidth) - 0.3) / curZoom) - *offY
 
-								c := complex(xx, yy) //Rotate
-								z := complex(0, 0)
-
-								var it uint32 = 0
-								skip := false
+								var it uint32
+								var tempx, zx, zy float64
 								found := false
+								skip := false
 
-								//Pre-interate (no draw)
-								//Speed + asthetic choice
-								for i := 0; i < preIters; i++ {
-									z = z*z + c
-									if real(z)*real(z)+imag(z)*imag(z) > *escapeVal {
+								for it = 0; it < preIters; it++ {
+									zzx := zx * zx
+									zzy := zy * zy
+									if zzx+zzy > 4 {
 										skip = true
 										break
 									}
+									tempx = zzx - zzy + cx
+									zy = 2*zx*zy + cy
+									zx = tempx
 								}
-
-								//Don't render at all if we escaped in the pre-iteration.
 								if !skip {
 									for it = 0; it < numIters; it++ {
-										z = z*z + c
-										if real(z)*real(z)+imag(z)*imag(z) > *escapeVal {
+										zzx := zx * zx
+										zzy := zy * zy
+										if zzx+zzy > *escapeVal {
 											found = true
 											break
 										}
+										tempx = zzx - zzy + cx
+										zy = 2*zx*zy + cy
+										zx = tempx
 									}
 								}
 
 								//Don't render if we didn't escape
 								//This allows background and bulb to be black
-								if found {
+								if found && it > 0 {
 									//Add the value ( gamma correct ) to the total
 									//We later divide to get the average for super-sampling
 									pixel += paletteL[it]
