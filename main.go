@@ -26,7 +26,7 @@ const (
 	//I think this looks nicer, and it is a bit quicker
 	preIters = 10
 	//Even at max zoom (quantized around 10^15 zoom), this seems to be enough
-	maxIters = 800
+	maxIters = 2000
 
 	//Resolution of the output image
 	DimgWidth  = 3840
@@ -39,8 +39,8 @@ const (
 	DendFrame = 3600
 
 	//Area of interest
-	DoffX = 0.6135090622704931
-	DoffY = -0.6775767173961638
+	DoffX = -0.2925598845093559
+	DoffY = -0.45788116850031885
 
 	//Pow 100 is constant speed
 	DzoomPow = 100.0
@@ -52,7 +52,7 @@ const (
 	DzoomAdd = 1
 
 	//Gamma settings for color and luma. 0.4545... is standard 2.2
-	DgammaLuma   = 0.5
+	DgammaLuma   = 1.0
 	DgammaChroma = 1.0
 
 	//Pixel x,y size for each thread
@@ -85,6 +85,7 @@ var (
 	workBlock        *float64
 	colorBrightness  *float64
 	colorSaturation  *float64
+	numInterations   *int
 
 	//Sleep this long before starting a new thread
 	//Doesn't affect performance that much, but helps multitasking
@@ -137,6 +138,7 @@ func main() {
 	workBlock = flag.Float64("workBlock", DworkBlock, "Work block size (x*y)")
 	colorBrightness = flag.Float64("colorBrightness", DcolorBrightness, "HSV brightness of the chroma.")
 	colorSaturation = flag.Float64("colorSaturation", DcolorSaturation, "HSV saturation of the chroma.")
+	numInterations = flag.Int("iters", maxIters, "number of iterations max")
 	flag.Parse()
 
 	//zoom step size
@@ -150,7 +152,7 @@ func main() {
 	//Setup
 	wg = sizedwaitgroup.New(int(*numThreads))
 	numSamples = uint32(int(*superSample) * int(*superSample))
-	numIters = maxIters - preIters
+	numIters = uint32(*numInterations) - preIters
 
 	//Make gamma LUTs
 	for i := range paletteL {
