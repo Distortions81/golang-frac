@@ -18,6 +18,7 @@ import (
 
 const (
 	//For adjusting chroma
+	doColor          = false
 	DcolorExposure   = 0xFF
 	DcolorBrightness = 0.5
 	DcolorSaturation = 0.8
@@ -317,11 +318,18 @@ func updateOffscreen() bool {
 							}
 						}
 
-						//Add the pixel to the buffer, divide by number of samples for super-sampling
-						offscreen.Set(int(x), int(y), color.RGBA64{
-							uint16((r/numSamples)/2 + (pixel/numSamples)/2),
-							uint16((g/numSamples)/2 + (pixel/numSamples)/2),
-							uint16((b/numSamples)/2 + (pixel/numSamples)/2), 0xFFFF})
+						if doColor {
+							//Add the pixel to the buffer, divide by number of samples for super-sampling
+							offscreen.Set(int(x), int(y), color.RGBA64{
+								uint16((r/numSamples)/2 + (pixel/numSamples)/2),
+								uint16((g/numSamples)/2 + (pixel/numSamples)/2),
+								uint16((b/numSamples)/2 + (pixel/numSamples)/2), 0xFFFF})
+						} else {
+							offscreen.Set(int(x), int(y), color.RGBA64{
+								uint16(pixel / numSamples),
+								uint16(pixel / numSamples),
+								uint16(pixel / numSamples), 0xFFFF})
+						}
 					}
 				}
 			}(xBlock, yBlock)
