@@ -16,7 +16,7 @@ import (
 
 const (
 	//Scroll wheel speed
-	wheelMult = 8
+	wheelMult = 50
 
 	//Pre-iteraton removes the large circle around the mandelbrot
 	//I think this looks nicer, and it is a bit quicker
@@ -27,7 +27,7 @@ const (
 	//Resolution of the output image
 	DimgWidth  = 512
 	DimgHeight = 512
-	DpixMag    = 2
+	DpixMag    = 3
 
 	//This is the X,Y size, number of samples per pixel is superSample*superSample
 	DsuperSample = 1 //max 255 (255*255=65kSample)
@@ -173,6 +173,7 @@ func main() {
 	offscreen = ebiten.NewImage(int(renderWidth), int(renderHeight))
 
 	go func() {
+		time.Sleep(time.Second * 1)
 		for {
 			updateOffscreen()
 		}
