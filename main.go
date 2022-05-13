@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	fileName = "cordinates.txt"
 	//Scroll wheel speed
 	wheelMult = 50
 
@@ -23,17 +24,14 @@ const (
 	//I think this looks nicer, and it is a bit quicker
 	preIters = 10
 	//Even at max zoom (quantized around 10^15 zoom), this seems to be enough
-	maxIters = 2000
+	maxIters = 1500
 
 	//Resolution of the output image
 	DimgWidth  = 512
 	DimgHeight = 512
-	DpixMag    = 3
+	DpixMag    = 2
 
 	mouseSpeed = 6.5
-
-	//This is the X,Y size, number of samples per pixel is superSample*superSample
-	DsuperSample = 1 //max 255 (255*255=65kSample)
 
 	//Pow 100 is constant speed
 	DzoomPow = 100.0
@@ -44,29 +42,26 @@ const (
 	//Pixel x,y size for each thread
 	//Smaller blocks prevent idle threads near end of image render
 	//Really helps process scheduler on windows
-	DworkBlock = 64
+	DworkBlock = 32
 
 	//Gamma settings for color and luma. 0.4545... is standard 2.2
 	DgammaLuma = 0.5
 )
 
 var (
-	imgWidth    *float64
-	imgHeight   *float64
-	superSample *float64
-	zoomPow     *float64
-	escapeVal   *float64
-	gammaLuma   *float64
-	numThreads  *int
-	workBlock   *float64
-	pixMag      *float64
+	wroteFile time.Time
 
-	//Sleep this long before starting a new thread
-	//Doesn't affect performance that much, but helps multitasking
-	threadSleep time.Duration = time.Microsecond * 100
+	imgWidth   *float64
+	imgHeight  *float64
+	zoomPow    *float64
+	escapeVal  *float64
+	gammaLuma  *float64
+	numThreads *int
+	workBlock  *float64
+	pixMag     *float64
 
 	//Gamma LUT tables
-	paletteL [(maxIters - preIters) + 1]uint32
+	paletteL [(maxIters - preIters) + 1]uint8
 
 	//Image buffer
 	offscreen *ebiten.Image
@@ -80,8 +75,7 @@ var (
 
 	//Multithread group
 	wg sizedwaitgroup.SizedWaitGroup
-	//Divide by this to get average pixel color for supersampling
-	numSamples uint32
+
 	//number of times to iterate a sample
 	numIters     uint32
 	rightPressed bool
@@ -110,9 +104,17 @@ func (g *Game) Update() error {
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
 		if !rightPressed {
 			rightPressed = true
-			buf := fmt.Sprintf("%v:\n%v,%v\n\n", time.Now(), camX, camY)
-			os.WriteFile("cordinates.txt", []byte(buf), 0644)
 
+			buf := fmt.Sprintf("%v:\n%v,%v\n\n", time.Now(), camX, camY)
+			f, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+
+			if err == nil {
+				_, err := f.WriteString(buf)
+				if err == nil {
+					wroteFile = time.Now()
+				}
+				f.Close()
+			}
 		}
 	} else {
 		rightPressed = false
@@ -136,7 +138,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(*pixMag, *pixMag)
 	screen.DrawImage(ebiten.NewImageFromImage(offscreen), op)
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (click drag to move, wheel to zoom) %v,%v", ebiten.CurrentFPS(), camX, camY))
+
+	message := ""
+	if time.Since(wroteFile) < time.Second*5 {
+		message = fmt.Sprintf("Wrote coordinates to %v.", fileName)
+		ebitenutil.DebugPrint(screen, message)
+	} else {
+		ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (drag move, wheel zoom) %v,%v", ebiten.CurrentFPS(), camX, camY))
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -149,7 +158,6 @@ func main() {
 
 	imgWidth = flag.Float64("width", DimgWidth, "Width of output image")
 	imgHeight = flag.Float64("height", DimgHeight, "Height of output image")
-	superSample = flag.Float64("super", DsuperSample, "Super sampling factor")
 	gammaLuma = flag.Float64("gammaLuma", DgammaLuma, "Luma gamma")
 	zoomPow = flag.Float64("zoom", DzoomPow, "Zoom power")
 	escapeVal = flag.Float64("escape", DescapeVal, "Escape value")
@@ -168,12 +176,11 @@ func main() {
 
 	//Setup
 	wg = sizedwaitgroup.New(*numThreads)
-	numSamples = uint32(int(*superSample) * int(*superSample))
 	numIters = maxIters - preIters
 
 	//Make gamma LUTs
 	for i := range paletteL {
-		paletteL[i] = uint32(math.Pow(float64(i)/float64(numIters), *gammaLuma) * 0xFFFF)
+		paletteL[i] = uint8(math.Pow(float64(i)/float64(numIters), *gammaLuma) * 0xFF)
 	}
 
 	//Zoom needs a pre-calculation
@@ -205,7 +212,6 @@ func updateOffscreen() {
 		for yBlock = 0; yBlock <= *imgHeight / *workBlock; yBlock++ {
 
 			wg.Add()
-			time.Sleep(threadSleep) //Give process manager a moment
 			go func(xBlock, yBlock float64) {
 				defer wg.Done()
 
@@ -230,75 +236,51 @@ func updateOffscreen() {
 					yEnd = *imgHeight
 				}
 
-				//If the block is off the screen entirely, skip it
-				if xStart > *imgWidth {
-					return
-				}
-				if yStart > *imgHeight {
-					return
-				}
-
 				//Render the block
 				for x := xStart; x < xEnd; x++ {
 					for y := yStart; y < yEnd; y++ {
 
-						var pixel uint32 = 0
-						var sx, sy float64
+						//Translate to position on the mandelbrot
+						xx := ((((float64(x)) / *imgWidth) - 0.5) / curZoom) - camX
+						yy := ((((float64(y)) / *imgWidth) - 0.5) / curZoom) - camY
 
-						//Supersample
-						for sx = 0; sx < *superSample; sx++ {
-							for sy = 0; sy < *superSample; sy++ {
-								//Get the sub-pixel position
-								ssx := float64(sx) / float64(*superSample)
-								ssy := float64(sy) / float64(*superSample)
+						c := complex(xx, yy) //Rotate
+						z := complex(0, 0)
 
-								//Translate to position on the mandelbrot
-								xx := ((((float64(x) + ssx) / *imgWidth) - 0.5) / curZoom) - camX
-								yy := ((((float64(y) + ssy) / *imgWidth) - 0.5) / curZoom) - camY
+						var it uint32 = 0
+						skip := false
+						found := false
 
-								c := complex(xx, yy) //Rotate
-								z := complex(0, 0)
+						//Pre-interate (no draw)
+						//Speed + asthetic choice
+						for i := 0; i < preIters; i++ {
+							z = z*z + c
+							if real(z)*real(z)+imag(z)*imag(z) > *escapeVal {
+								skip = true
+								break
+							}
+						}
 
-								var it uint32 = 0
-								skip := false
-								found := false
-
-								//Pre-interate (no draw)
-								//Speed + asthetic choice
-								for i := 0; i < preIters; i++ {
-									z = z*z + c
-									if real(z)*real(z)+imag(z)*imag(z) > *escapeVal {
-										skip = true
-										break
-									}
-								}
-
-								//Don't render at all if we escaped in the pre-iteration.
-								if !skip {
-									for it = 0; it < numIters; it++ {
-										z = z*z + c
-										if real(z)*real(z)+imag(z)*imag(z) > *escapeVal {
-											found = true
-											break
-										}
-									}
-								}
-
-								//Don't render if we didn't escape
-								//This allows background and bulb to be black
-								if found {
-									//Add the value ( gamma correct ) to the total
-									//We later divide to get the average for super-sampling
-									pixel += paletteL[it]
+						//Don't render at all if we escaped in the pre-iteration.
+						if !skip {
+							for it = 0; it < numIters; it++ {
+								z = z*z + c
+								if real(z)*real(z)+imag(z)*imag(z) > *escapeVal {
+									found = true
+									break
 								}
 							}
 						}
 
-						//Add the pixel to the buffer, divide by number of samples for super-sampling
-						offscreen.Set(int(x), int(y), color.RGBA64{
-							uint16((pixel / numSamples)),
-							uint16((pixel / numSamples)),
-							uint16((pixel / numSamples)), 0xFFFF})
+						//Don't render if we didn't escape
+						//This allows background and bulb to be black
+						if found {
+							//Add the value ( gamma correct ) to the total
+							//We later divide to get the average for super-sampling
+							offscreen.Set(int(x), int(y), color.Gray{paletteL[it]})
+						} else {
+							offscreen.Set(int(x), int(y), color.Gray{0})
+						}
 					}
 				}
 			}(xBlock, yBlock)
