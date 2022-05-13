@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"os"
 	"runtime"
 	"time"
 
@@ -22,7 +23,7 @@ const (
 	//I think this looks nicer, and it is a bit quicker
 	preIters = 10
 	//Even at max zoom (quantized around 10^15 zoom), this seems to be enough
-	maxIters = 800
+	maxIters = 2000
 
 	//Resolution of the output image
 	DimgWidth  = 512
@@ -82,7 +83,8 @@ var (
 	//Divide by this to get average pixel color for supersampling
 	numSamples uint32
 	//number of times to iterate a sample
-	numIters uint32
+	numIters     uint32
+	rightPressed bool
 
 	renderWidth            float64
 	renderHeight           float64
@@ -104,6 +106,16 @@ func (g *Game) Update() error {
 
 		camX += ((float64(diffX) * mouseSpeed) / (float64(zoomInt) * curZoom))
 		camY += ((float64(diffY) * mouseSpeed) / (float64(zoomInt) * curZoom))
+	}
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
+		if !rightPressed {
+			rightPressed = true
+			buf := fmt.Sprintf("%v:\n%v,%v\n\n", time.Now(), camX, camY)
+			os.WriteFile("cordinates.txt", []byte(buf), 0644)
+
+		}
+	} else {
+		rightPressed = false
 	}
 
 	lastMouseX = tX
