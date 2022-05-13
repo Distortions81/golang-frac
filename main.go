@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	fileName = "cordinates.txt"
+	fileName = "coordinates.txt"
 	//Scroll wheel speed
 	wheelMult = 50
 
