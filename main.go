@@ -16,6 +16,9 @@ import (
 )
 
 const (
+	DimgWidth  = 512
+	DimgHeight = 512
+
 	fileName = "coordinates.txt"
 	//Scroll wheel speed
 	wheelMult = 50
@@ -27,9 +30,7 @@ const (
 	maxIters = 1500
 
 	//Resolution of the output image
-	DimgWidth  = 512
-	DimgHeight = 512
-	DpixMag    = 2
+	DpixMag = 2
 
 	mouseSpeed = 6.5
 
@@ -49,7 +50,8 @@ const (
 )
 
 var (
-	wroteFile time.Time
+	sizeChanged bool
+	wroteFile   time.Time
 
 	imgWidth   *float64
 	imgHeight  *float64
@@ -137,6 +139,11 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	if sizeChanged {
+		offscreen = ebiten.NewImage(int(*imgWidth), int(*imgHeight))
+		updateOffscreen()
+		sizeChanged = false
+	}
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(*pixMag, *pixMag)
 	screen.DrawImage(ebiten.NewImageFromImage(offscreen), op)
@@ -153,6 +160,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	tw := float64(outsideWidth)
+	th := float64(outsideHeight)
+
+	if tw != *imgWidth || th != *imgHeight {
+		sizeChanged = true
+		imgWidth = &tw
+		imgHeight = &th
+	}
 	return outsideWidth, outsideHeight
 }
 
@@ -170,8 +185,8 @@ func main() {
 	pixMag = flag.Float64("pixMag", DpixMag, "Work block size (x*y)")
 	flag.Parse()
 
-	renderWidth = *imgWidth
-	renderHeight = *imgHeight
+	renderWidth = float64(*imgWidth)
+	renderHeight = float64(*imgHeight)
 
 	//zoom step size
 	zoomDiv = 10000.0
@@ -191,7 +206,7 @@ func main() {
 	calcZoom()
 
 	ebiten.SetWindowSize(int((*imgWidth)*(*pixMag)), int((*imgHeight)*(*pixMag)))
-	ebiten.SetWindowResizable(false)
+	ebiten.SetWindowResizable(true)
 	ebiten.SetWindowTitle("Mandelbrot (Ebiten Demo)")
 	ebiten.SetFPSMode(ebiten.FPSModeVsyncOn)
 
