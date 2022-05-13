@@ -86,6 +86,8 @@ var (
 
 	camX, camY           float64
 	tX, tY, diffX, diffY int
+
+	drawScreen bool
 )
 
 type Game struct {
@@ -146,6 +148,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	} else {
 		ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (drag move, wheel zoom) %v,%v", ebiten.CurrentFPS(), camX, camY))
 	}
+
+	drawScreen = true
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -194,9 +198,14 @@ func main() {
 	offscreen = ebiten.NewImage(int(renderWidth), int(renderHeight))
 
 	go func() {
-		time.Sleep(time.Second * 1)
 		for {
-			updateOffscreen()
+			if drawScreen {
+				for {
+					updateOffscreen()
+				}
+			} else {
+				time.Sleep(time.Millisecond * 100)
+			}
 		}
 	}()
 
