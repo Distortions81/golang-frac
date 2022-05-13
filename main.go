@@ -29,6 +29,8 @@ const (
 	DimgHeight = 512
 	DpixMag    = 3
 
+	mouseSpeed = 6.5
+
 	//This is the X,Y size, number of samples per pixel is superSample*superSample
 	DsuperSample = 1 //max 255 (255*255=65kSample)
 
@@ -100,8 +102,8 @@ func (g *Game) Update() error {
 		diffX = (tX - lastMouseX)
 		diffY = (tY - lastMouseY)
 
-		camX += ((float64(diffX) * 10) / (float64(zoomInt) * curZoom))
-		camY += ((float64(diffY) * 10) / (float64(zoomInt) * curZoom))
+		camX += ((float64(diffX) * mouseSpeed) / (float64(zoomInt) * curZoom))
+		camY += ((float64(diffY) * mouseSpeed) / (float64(zoomInt) * curZoom))
 	}
 
 	lastMouseX = tX
