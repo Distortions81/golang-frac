@@ -153,7 +153,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		message = fmt.Sprintf("Wrote coordinates to %v.", fileName)
 		ebitenutil.DebugPrint(screen, message)
 	} else {
-		ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (drag move, wheel zoom) %v,%v", ebiten.CurrentFPS(), camX, camY))
+		ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (drag move, wheel zoom) %v,%v,%v", ebiten.CurrentFPS(), camX, camY, curZoom))
 	}
 
 	drawScreen = true
@@ -265,8 +265,8 @@ func updateOffscreen() {
 					for y := yStart; y < yEnd; y++ {
 
 						//Translate to position on the mandelbrot
-						xx := ((((float64(x)) / *imgWidth) - 0.5) / curZoom) - camX
-						yy := ((((float64(y)) / *imgWidth) - 0.5) / curZoom) - camY
+						xx := ((float64(x)/float64(renderWidth) - 0.5) / curZoom) - camX
+						yy := ((float64(y)/float64(renderWidth) - 0.5) / curZoom) - camY
 
 						c := complex(xx, yy) //Rotate
 						z := complex(0, 0)
