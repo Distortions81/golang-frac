@@ -59,7 +59,7 @@ const (
 	//Pixel x,y size for each thread
 	//Smaller blocks prevent idle threads near end of image render
 	//Really helps process scheduler on windows
-	DworkBlock = 64
+	DworkBlock = 32
 
 	//How much color rotates (in degrees) per iteration
 	DcolorDegPerInter = 5
@@ -90,7 +90,7 @@ var (
 
 	//Sleep this long before starting a new thread
 	//Doesn't affect performance that much, but helps multitasking
-	threadSleep time.Duration = time.Millisecond
+	threadSleep time.Duration = time.Microsecond * 100
 
 	//Gamma LUT tables
 	paletteL [(maxIters - preIters) + 1]uint32
