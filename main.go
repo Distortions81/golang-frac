@@ -27,7 +27,7 @@ const (
 	//I think this looks nicer, and it is a bit quicker
 	preIters = 10
 	//Even at max zoom (quantized around 10^15 zoom), this seems to be enough
-	maxIters = 2000
+	maxIters = 2500
 
 	//Resolution of the output image
 	DimgWidth  = 3840
