@@ -34,10 +34,10 @@ const (
 	DimgHeight = 2160
 
 	//This is the X,Y size, number of samples per pixel is superSample*superSample
-	DsuperSample = 16 //max 255 (255*255=65kSample)
+	DsuperSample = 8 //max 255 (255*255=65kSample)
 
 	//Stop rendering at this frame
-	DendFrame = 3600
+	DendFrame = 18960
 
 	//Area of interest
 	DoffX = -0.2925598845093559
