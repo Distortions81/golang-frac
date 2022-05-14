@@ -35,10 +35,10 @@ const (
 	DimgHeight = 2160
 
 	//This is the X,Y size, number of samples per pixel is superSample*superSample
-	DsuperSample = 8 //max 255 (255*255=65kSample)
+	DsuperSample = 16 //max 255 (255*255=65kSample)
 
 	//Stop rendering at this frame
-	DendFrame = 7608
+	DendFrame = 3600
 
 	//Area of interest
 	DoffX = -0.2925598845093559
@@ -66,7 +66,7 @@ const (
 	DcolorDegPerInter = 1
 
 	//zoom speed divisor
-	DzSpeedDiv = 0.5
+	DzSpeedDiv = 1.1
 )
 
 var (
