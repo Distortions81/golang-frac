@@ -135,7 +135,7 @@ func main() {
 	offscreenC = image.NewRGBA(image.Rect(0, 0, int(*imgWidth), int(*imgHeight)))
 
 	//Setup
-	wg = sizedwaitgroup.New(int(*numThreads))
+	wg = sizedwaitgroup.New(*numThreads)
 	numSamples = uint32(int(*superSample) * int(*superSample))
 	numIters = uint32(*numInterations) - preIters
 

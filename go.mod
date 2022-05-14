@@ -31,6 +31,6 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	k8s.io/apimachinery v0.23.6 // indirect
+	k8s.io/apimachinery v0.24.0 // indirect
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 )
