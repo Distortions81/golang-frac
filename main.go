@@ -191,7 +191,7 @@ func main() {
 				fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "chroma", frameCount)
 				output, err := os.Create(fileName)
 				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-				if tiff.Encode(output, offscreen, opt) != nil {
+				if tiff.Encode(output, offscreenC, opt) != nil {
 					log.Println("ERROR: Failed to write image:", err)
 					os.Exit(1)
 				}
