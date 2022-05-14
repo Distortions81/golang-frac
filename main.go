@@ -17,56 +17,9 @@ import (
 )
 
 const (
-	//For adjusting chroma
-	DoutDir          = "out"
-	DdoLuma          = true
-	DdoChroma        = true
-	DcolorBrightness = 0.5
-	DcolorSaturation = 0.8
-
-	//Pre-iteraton removes the large circle around the mandelbrot
-	//I think this looks nicer, and it is a bit quicker
+	iterCap  = 10000
+	iterMin  = 100
 	preIters = 10
-	//Even at max zoom (quantized around 10^15 zoom), this seems to be enough
-	maxIters = 2500
-
-	//Resolution of the output image
-	DimgWidth  = 3840
-	DimgHeight = 2160
-
-	//This is the X,Y size, number of samples per pixel is superSample*superSample
-	DsuperSample = 16 //max 255 (255*255=65kSample)
-
-	//Stop rendering at this frame
-	DendFrame = 3600
-
-	//Area of interest
-	DoffX = -0.2925598845093559
-	DoffY = -0.45788116850031885
-
-	//Pow 100 is constant speed
-	DzoomPow = 100.0
-
-	//Rendering optimize
-	DescapeVal = 4.0
-
-	//Zoom multiplier for quick animation previews
-	DzoomAdd = 1
-
-	//Gamma settings for color and luma. 0.4545... is standard 2.2
-	DgammaLuma   = 1.0
-	DgammaChroma = 1.0
-
-	//Pixel x,y size for each thread
-	//Smaller blocks prevent idle threads near end of image render
-	//Really helps process scheduler on windows
-	DworkBlock = 32
-
-	//How much color rotates (in degrees) per iteration
-	DcolorDegPerInter = 1
-
-	//zoom speed divisor
-	DzSpeedDiv = 1.1
 )
 
 var (
@@ -91,13 +44,15 @@ var (
 	colorBrightness  *float64
 	colorSaturation  *float64
 	numInterations   *int
+	doSleep          *bool
+	sleepMicro       *int
 
 	//Sleep this long before starting a new thread
 	//Doesn't affect performance that much, but helps multitasking
-	threadSleep time.Duration = time.Microsecond * 100
+	threadSleep time.Duration = time.Microsecond
 
 	//Gamma LUT tables
-	paletteL [(maxIters - preIters) + 1]uint32
+	paletteL [iterCap]uint32
 	paletteC [0xFF]uint32
 
 	//Image buffer
@@ -129,31 +84,51 @@ func main() {
 
 	doChroma = flag.Bool("doChroma", true, "output chroma/color image")
 	doLuma = flag.Bool("doLuma", true, "output luma/brightness image")
-	outDir = flag.String("outDir", DoutDir, "output directory")
-	imgWidth = flag.Float64("width", DimgWidth, "Width of output image")
-	imgHeight = flag.Float64("height", DimgHeight, "Height of output image")
-	superSample = flag.Float64("super", DsuperSample, "Super sampling factor")
-	endFrame = flag.Float64("end", DendFrame, "End frame")
-	offX = flag.Float64("offx", DoffX, "X offset")
-	offY = flag.Float64("offy", DoffY, "Y offset")
-	zoomPow = flag.Float64("zoom", DzoomPow, "Zoom power")
-	escapeVal = flag.Float64("escape", DescapeVal, "Escape value")
-	gammaLuma = flag.Float64("gammaLuma", DgammaLuma, "Luma gamma")
-	gammaChroma = flag.Float64("gammaChroma", DgammaChroma, "Chroma gamma")
-	zoomAdd = flag.Float64("zoomAdd", DzoomAdd, "Zoom step size")
-	zSpeedDiv = flag.Float64("zSpeedDiv", DzSpeedDiv, "Zoom speed divisor")
-	colorDegPerInter = flag.Int("colorDegPerInter", DcolorDegPerInter, "Color rotation per iteration")
+	outDir = flag.String("outDir", "out", "output directory")
+	imgWidth = flag.Float64("width", 3840, "Width of output image")
+	imgHeight = flag.Float64("height", 2160, "Height of output image")
+	superSample = flag.Float64("super", 8, "Super sampling factor")
+	endFrame = flag.Float64("end", 3600, "End frame")
+	offX = flag.Float64("offx", 0, "X offset")
+	offY = flag.Float64("offy", 0, "Y offset")
+	zoomPow = flag.Float64("zoom", 100, "Zoom power")
+	escapeVal = flag.Float64("escape", 4, "Escape value")
+	gammaLuma = flag.Float64("gammaLuma", 1.0, "Luma gamma")
+	gammaChroma = flag.Float64("gammaChroma", 1.0, "Chroma gamma")
+	zoomAdd = flag.Float64("zoomAdd", 1, "Zoom step size")
+	zSpeedDiv = flag.Float64("zSpeedDiv", 1.0, "Zoom speed divisor")
+	colorDegPerInter = flag.Int("colorDegPerInter", 1, "Color rotation per iteration")
 	numThreads = flag.Float64("numThreads", DnumThreads, "Number of threads")
-	workBlock = flag.Float64("workBlock", DworkBlock, "Work block size (x*y)")
-	colorBrightness = flag.Float64("colorBrightness", DcolorBrightness, "HSV brightness of the chroma.")
-	colorSaturation = flag.Float64("colorSaturation", DcolorSaturation, "HSV saturation of the chroma.")
-	numInterations = flag.Int("iters", maxIters, "number of iterations max")
+	workBlock = flag.Float64("workBlock", 64, "Work block size (x*y)")
+	colorBrightness = flag.Float64("colorBrightness", 0.5, "HSV brightness of the chroma")
+	colorSaturation = flag.Float64("colorSaturation", 0.8, "HSV saturation of the chroma")
+	numInterations = flag.Int("iters", 2500, "number of iterations max")
+	doSleep = flag.Bool("sleep", false, "sleep between work blocks")
+	sleepMicro = flag.Int("sleepMicro", 100, "microseconds of sleep before each workblock")
 	flag.Parse()
+
+	threadSleep = time.Duration(*sleepMicro)
+
+	/* Statically allocated */
+	if *numInterations > iterCap {
+		a := iterCap
+		numInterations = &a
+	} else if *numInterations < iterMin {
+		a := iterMin
+		numInterations = &a
+	}
+	if *superSample < 1 {
+		a := 1.0
+		superSample = &a
+	} else if *superSample > 255 {
+		a := 255.0
+		superSample = &a
+	}
 
 	//zoom step size
 	zoomDiv = 10000.0 / *zSpeedDiv
 	//Integer zoom is based on
-	zoomInt = 9800 / *zSpeedDiv
+	zoomInt = 9800.0 / *zSpeedDiv
 
 	//Alloc images
 	offscreen = image.NewGray16(image.Rect(0, 0, int(*imgWidth), int(*imgHeight)))
@@ -165,7 +140,8 @@ func main() {
 	numIters = uint32(*numInterations) - preIters
 
 	//Make gamma LUTs
-	for i := range paletteL {
+	var i uint32
+	for i = 0; i < numIters; i++ {
 		paletteL[i] = uint32(math.Pow(float64(i)/float64(numIters), *gammaLuma) * 0xFFFF)
 	}
 	for i := range paletteC {
@@ -259,7 +235,10 @@ func updateOffscreen() bool {
 		for yBlock = 0; yBlock <= *imgHeight / *workBlock; yBlock++ {
 
 			wg.Add()
-			time.Sleep(threadSleep) //Give process manager a moment
+			if *doSleep {
+				//Give process manager a moment
+				time.Sleep(threadSleep * time.Microsecond)
+			}
 			go func(xBlock, yBlock float64) {
 				defer wg.Done()
 
