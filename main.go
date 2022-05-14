@@ -18,10 +18,9 @@ import (
 
 const (
 	//For adjusting chroma
-	DoutName         = "img"
-	doColor          = true
-	doLuma           = false
-	DcolorExposure   = 0xFF
+	DoutDir          = "out"
+	DdoLuma          = true
+	DdoChroma        = true
 	DcolorBrightness = 0.5
 	DcolorSaturation = 0.8
 
@@ -39,7 +38,7 @@ const (
 	DsuperSample = 8 //max 255 (255*255=65kSample)
 
 	//Stop rendering at this frame
-	DendFrame = 18960
+	DendFrame = 7608
 
 	//Area of interest
 	DoffX = -0.2925598845093559
@@ -64,14 +63,16 @@ const (
 	DworkBlock = 32
 
 	//How much color rotates (in degrees) per iteration
-	DcolorDegPerInter = 5
+	DcolorDegPerInter = 1
 
 	//zoom speed divisor
-	DzSpeedDiv = 0.2
+	DzSpeedDiv = 0.5
 )
 
 var (
-	outName          *string
+	doChroma         *bool
+	doLuma           *bool
+	outDir           *string
 	imgWidth         *float64
 	imgHeight        *float64
 	superSample      *float64
@@ -97,10 +98,11 @@ var (
 
 	//Gamma LUT tables
 	paletteL [(maxIters - preIters) + 1]uint32
-	paletteC [DcolorExposure + 1]uint32
+	paletteC [0xFF]uint32
 
 	//Image buffer
-	offscreen *image.RGBA64
+	offscreen  *image.Gray16
+	offscreenC *image.RGBA
 
 	//Current zoom level
 	curZoom float64 = 1.0
@@ -125,7 +127,9 @@ func main() {
 
 	DnumThreads := float64(runtime.NumCPU())
 
-	outName = flag.String("outName", DoutName, "file prefix")
+	doChroma = flag.Bool("doChroma", true, "output chroma/color image")
+	doLuma = flag.Bool("doLuma", true, "output luma/brightness image")
+	outDir = flag.String("outDir", DoutDir, "output directory")
 	imgWidth = flag.Float64("width", DimgWidth, "Width of output image")
 	imgHeight = flag.Float64("height", DimgHeight, "Height of output image")
 	superSample = flag.Float64("super", DsuperSample, "Super sampling factor")
@@ -152,7 +156,8 @@ func main() {
 	zoomInt = 9800 / *zSpeedDiv
 
 	//Alloc images
-	offscreen = image.NewRGBA64(image.Rect(0, 0, int(*imgWidth), int(*imgHeight)))
+	offscreen = image.NewGray16(image.Rect(0, 0, int(*imgWidth), int(*imgHeight)))
+	offscreenC = image.NewRGBA(image.Rect(0, 0, int(*imgWidth), int(*imgHeight)))
 
 	//Setup
 	wg = sizedwaitgroup.New(int(*numThreads))
@@ -164,7 +169,7 @@ func main() {
 		paletteL[i] = uint32(math.Pow(float64(i)/float64(numIters), *gammaLuma) * 0xFFFF)
 	}
 	for i := range paletteC {
-		paletteC[i] = uint32(math.Pow(float64(i)/float64(DcolorExposure), *gammaChroma) * 0xFFFF)
+		paletteC[i] = uint32(math.Pow(float64(i)/float64(0xFF), *gammaChroma) * 0xFF)
 	}
 
 	//Zoom needs a pre-calculation
@@ -182,14 +187,27 @@ func main() {
 		//(we can skip frames for resume and multi-machine rendering)
 		if rendered {
 
-			fileName := fmt.Sprintf("out/%v-%v.tif", outName, frameCount)
-			output, err := os.Create(fileName)
-			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-			if tiff.Encode(output, offscreen, opt) != nil {
-				log.Println("ERROR: Failed to write image:", err)
-				os.Exit(1)
+			if *doChroma {
+				fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "chroma", frameCount)
+				output, err := os.Create(fileName)
+				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+				if tiff.Encode(output, offscreen, opt) != nil {
+					log.Println("ERROR: Failed to write image:", err)
+					os.Exit(1)
+				}
+				output.Close()
 			}
-			output.Close()
+
+			if *doLuma {
+				fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "luma", frameCount)
+				output, err := os.Create(fileName)
+				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+				if tiff.Encode(output, offscreen, opt) != nil {
+					log.Println("ERROR: Failed to write image:", err)
+					os.Exit(1)
+				}
+				output.Close()
+			}
 
 			fmt.Println("Completed frame:", frameCount)
 		}
@@ -207,16 +225,32 @@ func updateOffscreen() bool {
 	//Skip frames that already exist
 	//Otherwise make a empty placeholder file to reserve this frame for us
 	//For lazy file-share multi-machine rendering (i use sshfs)
-	fileName := fmt.Sprintf("out/%v-%v.tif", outName, frameCount)
-	_, err := os.Stat(fileName)
-	if err == nil {
-		fmt.Println(fileName, "Exists... Skipping")
-		return false
-	} else {
-		_, err := os.Create(fileName)
-		if err != nil {
-			log.Println("ERROR: Failed to create file:", err)
+	if *doChroma {
+		fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "chroma", frameCount)
+		_, err := os.Stat(fileName)
+		if err == nil {
+			fmt.Println(fileName, "chroma exists... Skipping")
 			return false
+		} else {
+			_, err := os.Create(fileName)
+			if err != nil {
+				log.Println("ERROR: Failed to create file:", err)
+				return false
+			}
+		}
+	}
+	if *doLuma {
+		fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "luma", frameCount)
+		_, err := os.Stat(fileName)
+		if err == nil {
+			fmt.Println(fileName, "luma exists... Skipping")
+			return false
+		} else {
+			_, err := os.Create(fileName)
+			if err != nil {
+				log.Println("ERROR: Failed to create file:", err)
+				return false
+			}
 		}
 	}
 
@@ -248,14 +282,6 @@ func updateOffscreen() bool {
 				}
 				if yEnd > *imgHeight {
 					yEnd = *imgHeight
-				}
-
-				//If the block is off the screen entirely, skip it
-				if xStart > *imgWidth {
-					return
-				}
-				if yStart > *imgHeight {
-					return
 				}
 
 				//Render the block
@@ -322,22 +348,14 @@ func updateOffscreen() bool {
 							}
 						}
 
-						if doColor && doLuma {
-							//Add the pixel to the buffer, divide by number of samples for super-sampling
-							offscreen.Set(int(x), int(y), color.RGBA64{
-								uint16((r/numSamples)/2 + (pixel/numSamples)/2),
-								uint16((g/numSamples)/2 + (pixel/numSamples)/2),
-								uint16((b/numSamples)/2 + (pixel/numSamples)/2), 0xFFFF})
-						} else if doLuma && !doColor {
-							offscreen.Set(int(x), int(y), color.RGBA64{
-								uint16(pixel / numSamples),
-								uint16(pixel / numSamples),
-								uint16(pixel / numSamples), 0xFFFF})
-						} else if !doLuma && doColor {
-							offscreen.Set(int(x), int(y), color.RGBA64{
-								uint16((r / numSamples)),
-								uint16((g / numSamples)),
-								uint16((b / numSamples)), 0xFFFF})
+						if *doLuma {
+							offscreen.Set(int(x), int(y), color.Gray16{uint16(pixel / numSamples)})
+						}
+						if *doChroma {
+							offscreenC.Set(int(x), int(y), color.RGBA{
+								uint8((r / numSamples)),
+								uint8((g / numSamples)),
+								uint8((b / numSamples)), 0xFF})
 						}
 					}
 				}
