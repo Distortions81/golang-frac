@@ -109,6 +109,8 @@ func main() {
 
 	threadSleep = time.Duration(*sleepMicro)
 
+	fmt.Printf("%v,%v\n", *offX, *offY)
+
 	/* Statically allocated */
 	if *numInterations > iterCap {
 		a := iterCap
@@ -279,8 +281,8 @@ func updateOffscreen() bool {
 								ssy := float64(sy) / float64(*superSample)
 
 								//Translate to position on the mandelbrot
-								xx := ((((float64(x) + ssx) / *imgWidth) - 0.5) / curZoom) - *offX
-								yy := ((((float64(y) + ssy) / *imgWidth) - 0.3) / curZoom) - *offY
+								xx := ((((float64(x) + ssx) / *imgWidth) - 0.5) / curZoom) - (*offX)
+								yy := ((((float64(y) + ssy) / *imgWidth) - 0.3) / curZoom) - (*offY)
 
 								c := complex(xx, yy) //Rotate
 								z := complex(0, 0)
