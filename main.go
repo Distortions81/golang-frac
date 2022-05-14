@@ -18,7 +18,9 @@ import (
 
 const (
 	//For adjusting chroma
-	doColor          = false
+	DoutName         = "img"
+	doColor          = true
+	doLuma           = false
 	DcolorExposure   = 0xFF
 	DcolorBrightness = 0.5
 	DcolorSaturation = 0.8
@@ -69,6 +71,7 @@ const (
 )
 
 var (
+	outName          *string
 	imgWidth         *float64
 	imgHeight        *float64
 	superSample      *float64
@@ -122,6 +125,7 @@ func main() {
 
 	DnumThreads := float64(runtime.NumCPU())
 
+	outName = flag.String("outName", DoutName, "file prefix")
 	imgWidth = flag.Float64("width", DimgWidth, "Width of output image")
 	imgHeight = flag.Float64("height", DimgHeight, "Height of output image")
 	superSample = flag.Float64("super", DsuperSample, "Super sampling factor")
@@ -178,7 +182,7 @@ func main() {
 		//(we can skip frames for resume and multi-machine rendering)
 		if rendered {
 
-			fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
+			fileName := fmt.Sprintf("out/%v-%v.tif", outName, frameCount)
 			output, err := os.Create(fileName)
 			opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
 			if tiff.Encode(output, offscreen, opt) != nil {
@@ -203,7 +207,7 @@ func updateOffscreen() bool {
 	//Skip frames that already exist
 	//Otherwise make a empty placeholder file to reserve this frame for us
 	//For lazy file-share multi-machine rendering (i use sshfs)
-	fileName := fmt.Sprintf("out/color-%v.tif", frameCount)
+	fileName := fmt.Sprintf("out/%v-%v.tif", outName, frameCount)
 	_, err := os.Stat(fileName)
 	if err == nil {
 		fmt.Println(fileName, "Exists... Skipping")
@@ -318,17 +322,22 @@ func updateOffscreen() bool {
 							}
 						}
 
-						if doColor {
+						if doColor && doLuma {
 							//Add the pixel to the buffer, divide by number of samples for super-sampling
 							offscreen.Set(int(x), int(y), color.RGBA64{
 								uint16((r/numSamples)/2 + (pixel/numSamples)/2),
 								uint16((g/numSamples)/2 + (pixel/numSamples)/2),
 								uint16((b/numSamples)/2 + (pixel/numSamples)/2), 0xFFFF})
-						} else {
+						} else if doLuma && !doColor {
 							offscreen.Set(int(x), int(y), color.RGBA64{
 								uint16(pixel / numSamples),
 								uint16(pixel / numSamples),
 								uint16(pixel / numSamples), 0xFFFF})
+						} else if !doLuma && doColor {
+							offscreen.Set(int(x), int(y), color.RGBA64{
+								uint16((r / numSamples)),
+								uint16((g / numSamples)),
+								uint16((b / numSamples)), 0xFFFF})
 						}
 					}
 				}
