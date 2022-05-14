@@ -39,7 +39,7 @@ var (
 	zoomAdd          *float64
 	zSpeedDiv        *float64
 	colorDegPerInter *int
-	numThreads       *float64
+	numThreads       *int
 	workBlock        *float64
 	colorBrightness  *float64
 	colorSaturation  *float64
@@ -80,7 +80,7 @@ type Game struct {
 
 func main() {
 
-	DnumThreads := float64(runtime.NumCPU())
+	DnumThreads := (runtime.NumCPU())
 
 	doChroma = flag.Bool("doChroma", true, "output chroma/color image")
 	doLuma = flag.Bool("doLuma", true, "output luma/brightness image")
@@ -98,7 +98,7 @@ func main() {
 	zoomAdd = flag.Float64("zoomAdd", 1, "Zoom step size")
 	zSpeedDiv = flag.Float64("zSpeedDiv", 1.0, "Zoom speed divisor")
 	colorDegPerInter = flag.Int("colorDegPerInter", 1, "Color rotation per iteration")
-	numThreads = flag.Float64("numThreads", DnumThreads, "Number of threads")
+	numThreads = flag.Int("numThreads", DnumThreads, "Number of threads")
 	workBlock = flag.Float64("workBlock", 64, "Work block size (x*y)")
 	colorBrightness = flag.Float64("colorBrightness", 0.5, "HSV brightness of the chroma")
 	colorSaturation = flag.Float64("colorSaturation", 0.8, "HSV saturation of the chroma")
