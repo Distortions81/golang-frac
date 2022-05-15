@@ -23,8 +23,8 @@ const (
 )
 
 var (
-	doChroma         *bool
-	doLuma           *bool
+	disChroma        *bool
+	disLuma          *bool
 	outDir           *string
 	imgWidth         *float64
 	imgHeight        *float64
@@ -82,13 +82,13 @@ func main() {
 
 	DnumThreads := (runtime.NumCPU())
 
-	doChroma = flag.Bool("doChroma", true, "output chroma/color image")
-	doLuma = flag.Bool("doLuma", true, "output luma/brightness image")
+	disChroma = flag.Bool("disChroma", false, "Do not output chroma image")
+	disLuma = flag.Bool("disLuma", false, "Do not output luma image")
 	outDir = flag.String("outDir", "out", "output directory")
 	imgWidth = flag.Float64("width", 3840, "Width of output image")
 	imgHeight = flag.Float64("height", 2160, "Height of output image")
-	superSample = flag.Float64("super", 8, "Super sampling factor")
-	endFrame = flag.Float64("end", 3600, "End frame")
+	superSample = flag.Float64("super", 8, "Super sampling x/y size")
+	endFrame = flag.Float64("end", 3600, "Stop on this frame number")
 	offX = flag.Float64("offx", 0, "X offset")
 	offY = flag.Float64("offy", 0, "Y offset")
 	zoomPow = flag.Float64("zoom", 100, "Zoom power")
@@ -97,14 +97,14 @@ func main() {
 	gammaChroma = flag.Float64("gammaChroma", 1.0, "Chroma gamma")
 	zoomAdd = flag.Float64("zoomAdd", 1, "Zoom step size")
 	zSpeedDiv = flag.Float64("zSpeedDiv", 1.0, "Zoom speed divisor")
-	colorDegPerInter = flag.Int("colorDegPerInter", 1, "Color rotation per iteration")
-	numThreads = flag.Int("numThreads", DnumThreads, "Number of threads")
-	workBlock = flag.Float64("workBlock", 64, "Work block size (x*y)")
+	colorDegPerInter = flag.Int("colorDegPerInter", 1, "Color degrees per iteration")
+	numThreads = flag.Int("numThreads", DnumThreads, "Number of threads to use")
+	workBlock = flag.Float64("workBlock", 64, "Work block size x/y size")
 	colorBrightness = flag.Float64("colorBrightness", 0.5, "HSV brightness of the chroma")
 	colorSaturation = flag.Float64("colorSaturation", 0.8, "HSV saturation of the chroma")
-	numInterations = flag.Int("iters", 2500, "number of iterations max")
-	doSleep = flag.Bool("sleep", false, "sleep between work blocks")
-	sleepMicro = flag.Int("sleepMicro", 100, "microseconds of sleep before each workblock")
+	numInterations = flag.Int("iters", 2500, "Max number of iterations")
+	doSleep = flag.Bool("doSleep", false, "Sleep before work blocks")
+	sleepMicro = flag.Int("sleepMicro", 100, "Microseconds of sleep before each workblock")
 	flag.Parse()
 
 	threadSleep = time.Duration(*sleepMicro)
@@ -165,7 +165,7 @@ func main() {
 		//(we can skip frames for resume and multi-machine rendering)
 		if rendered {
 
-			if *doChroma {
+			if !*disChroma {
 				fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "chroma", frameCount)
 				output, err := os.Create(fileName)
 				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
@@ -176,7 +176,7 @@ func main() {
 				output.Close()
 			}
 
-			if *doLuma {
+			if !*disLuma {
 				fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "luma", frameCount)
 				output, err := os.Create(fileName)
 				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
@@ -203,7 +203,7 @@ func updateOffscreen() bool {
 	//Skip frames that already exist
 	//Otherwise make a empty placeholder file to reserve this frame for us
 	//For lazy file-share multi-machine rendering (i use sshfs)
-	if *doChroma {
+	if !*disChroma {
 		fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "chroma", frameCount)
 		_, err := os.Stat(fileName)
 		if err == nil {
@@ -217,7 +217,7 @@ func updateOffscreen() bool {
 			}
 		}
 	}
-	if *doLuma {
+	if !*disLuma {
 		fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "luma", frameCount)
 		_, err := os.Stat(fileName)
 		if err == nil {
@@ -329,10 +329,10 @@ func updateOffscreen() bool {
 							}
 						}
 
-						if *doLuma {
+						if !*disLuma {
 							offscreen.Set(int(x), int(y), color.Gray16{uint16(pixel / numSamples)})
 						}
-						if *doChroma {
+						if !*disChroma {
 							offscreenC.Set(int(x), int(y), color.RGBA{
 								uint8((r / numSamples)),
 								uint8((g / numSamples)),
