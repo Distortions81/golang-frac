@@ -153,7 +153,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		message = fmt.Sprintf("Wrote coordinates to %v.", fileName)
 		ebitenutil.DebugPrint(screen, message)
 	} else {
-		ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (drag move, wheel zoom) %v,%v,%v", ebiten.CurrentFPS(), camX, camY, curZoom))
+		tenthPow := math.Pow(curZoom, 1.0/10) - 1.0
+		ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f (drag move, wheel zoom) %v,%v, 10^%0.2f", ebiten.CurrentFPS(), camX, camY, tenthPow))
 	}
 
 	drawScreen = true
