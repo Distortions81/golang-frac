@@ -43,7 +43,7 @@ const (
 	//Pixel x,y size for each thread
 	//Smaller blocks prevent idle threads near end of image render
 	//Really helps process scheduler on windows
-	DworkBlock = 32
+	DworkBlock = 8
 
 	//Gamma settings for color and luma. 0.4545... is standard 2.2
 	DgammaLuma = 0.5
