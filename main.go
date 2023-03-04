@@ -150,6 +150,9 @@ func main() {
 		paletteC[i] = uint32(math.Pow(float64(i)/float64(0xFF), *gammaChroma) * 0xFF)
 	}
 
+	startTime := time.Now()
+	firstFrame := 0
+
 	//Zoom needs a pre-calculation
 	calcZoom()
 
@@ -187,7 +190,11 @@ func main() {
 				output.Close()
 			}
 
-			fmt.Println("Completed frame:", frameCount)
+			eta := time.Duration(time.Since(startTime).Seconds()*(*endFrame-float64(firstFrame))/frameCount-float64(firstFrame)) * time.Second
+			fmt.Println("Completed frame:", frameCount, eta.String())
+			if firstFrame == 0 {
+				firstFrame = int(frameCount)
+			}
 		}
 		if frameCount >= *endFrame {
 			fmt.Println("Rendering complete")
@@ -319,7 +326,7 @@ func updateOffscreen() bool {
 									//We later divide to get the average for super-sampling
 									pixel += paletteL[it]
 
-									tr, tg, tb := colorutil.HsvToRgb(float64(it*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
+									tr, tg, tb := colorutil.HsvToRgb(float64((it+uint32(frameCount))*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
 									//We already gamma corrected, so use gamma 1.0 for chroma
 									//But still convert from 8 bits to 16, to match the luma
 									r += paletteC[tr]
