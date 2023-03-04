@@ -150,16 +150,15 @@ func main() {
 		paletteC[i] = uint32(math.Pow(float64(i)/float64(0xFF), *gammaChroma) * 0xFF)
 	}
 
-	startTime := time.Now()
-	firstFrame := 0
-
 	//Zoom needs a pre-calculation
 	calcZoom()
 
 	//Render loop
 	for {
 		//Render frame
+		renderStart := time.Now()
 		rendered := updateOffscreen()
+		took := time.Since(renderStart).Seconds()
 
 		//Update zoom for next frame
 		calcZoom()
@@ -168,34 +167,44 @@ func main() {
 		//(we can skip frames for resume and multi-machine rendering)
 		if rendered {
 
-			if !*disChroma {
-				fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "chroma", frameCount)
-				output, err := os.Create(fileName)
-				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-				if tiff.Encode(output, offscreenC, opt) != nil {
-					log.Println("ERROR: Failed to write image:", err)
-					os.Exit(1)
-				}
-				output.Close()
-			}
+			wg.Add()
+			go func() {
 
-			if !*disLuma {
-				fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "luma", frameCount)
-				output, err := os.Create(fileName)
-				opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
-				if tiff.Encode(output, offscreen, opt) != nil {
-					log.Println("ERROR: Failed to write image:", err)
-					os.Exit(1)
+				if !*disChroma {
+					fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "chroma", frameCount)
+					output, err := os.Create(fileName)
+					opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+					if tiff.Encode(output, offscreenC, opt) != nil {
+						log.Println("ERROR: Failed to write image:", err)
+						os.Exit(1)
+					}
+					output.Close()
 				}
-				output.Close()
-			}
+				wg.Done()
+			}()
 
-			if firstFrame == 0 {
-				firstFrame = int(frameCount)
-			}
-			eta := time.Duration(time.Since(startTime).Seconds()*(*endFrame-float64(firstFrame))/frameCount-float64(firstFrame)) * time.Second
-			fmt.Println("Completed frame: ", frameCount, "Possible ETA:", eta.String())
+			wg.Add()
+			go func() {
+				if !*disLuma {
+					fileName := fmt.Sprintf("%v/%v-%v.tif", *outDir, "luma", frameCount)
+					output, err := os.Create(fileName)
+					opt := &tiff.Options{Compression: tiff.Deflate, Predictor: true}
+					if tiff.Encode(output, offscreen, opt) != nil {
+						log.Println("ERROR: Failed to write image:", err)
+						os.Exit(1)
+					}
+					output.Close()
+				}
+				wg.Done()
+			}()
+
+			wg.Wait()
+
+			remain := *endFrame - frameCount
+			eta := time.Duration(took*remain) * time.Second
+			fmt.Printf("Completed frame: %v / %v (%v remaining) ETA: %v\n", frameCount, *endFrame, remain, eta.String())
 		}
+
 		if frameCount >= *endFrame {
 			fmt.Println("Rendering complete")
 			os.Exit(0)
