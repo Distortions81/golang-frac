@@ -190,11 +190,11 @@ func main() {
 				output.Close()
 			}
 
-			eta := time.Duration(time.Since(startTime).Seconds()*(*endFrame-float64(firstFrame))/frameCount-float64(firstFrame)) * time.Second
-			fmt.Println("Completed frame:", frameCount, eta.String())
 			if firstFrame == 0 {
 				firstFrame = int(frameCount)
 			}
+			eta := time.Duration(time.Since(startTime).Seconds()*(*endFrame-float64(firstFrame))/frameCount-float64(firstFrame)) * time.Second
+			fmt.Println("Completed frame: ", frameCount, "Possible ETA:", eta.String())
 		}
 		if frameCount >= *endFrame {
 			fmt.Println("Rendering complete")
