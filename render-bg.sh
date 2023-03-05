@@ -1,2 +1,2 @@
 #!/bin/bash
-nice -n 20 ./golang-frac -colorBrightness 0.5 -colorDegPerInter 2 -colorSaturation 0.8 -end 3600 -escape 4 -gammaChroma 1 -gammaLuma 1 -height 2160 -iters 2500 -offx 0.4785465418328581 -offy -0.5341837707051054 -outDir out -super 4 -width 3840 -workBlock 32 -doSleep -sleepMicro 100 -zSpeedDiv 1.1 -zoom 100 -zoomAdd 1
+nice -n 20 ./golang-frac -colorBrightness 0.5 -colorDegPerInter 2 -colorSaturation 0.8 -end 3600 -escape 4 -gammaChroma 1 -gammaLuma 1 -height 2160 -iters 2500 -offx 0.4785465418328581 -offy -0.5341837707051054 -outDir out -super 4 -width 3840 -workBlock 32 -doSleep -sleepMicro 1000 -zSpeedDiv 1.1 -zoom 100 -zoomAdd 1
