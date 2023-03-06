@@ -27,10 +27,10 @@ const (
 	//I think this looks nicer, and it is a bit quicker
 	preIters = 10
 	//Even at max zoom (quantized around 10^15 zoom), this seems to be enough
-	maxIters = 1500
+	maxIters = 10000
 
 	//Resolution of the output image
-	DpixMag = 2
+	DpixMag = 3
 
 	mouseSpeed = 6.5
 
@@ -43,7 +43,7 @@ const (
 	//Pixel x,y size for each thread
 	//Smaller blocks prevent idle threads near end of image render
 	//Really helps process scheduler on windows
-	DworkBlock = 8
+	DworkBlock = 4
 
 	//Gamma settings for color and luma. 0.4545... is standard 2.2
 	DgammaLuma = 0.5
