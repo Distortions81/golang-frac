@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	iterCap  = 10000
-	iterMin  = 100
-	preIters = 10
-	numLuma  = 48
+	iterCap    = 10000
+	iterMin    = 100
+	preIters   = 10
+	numLuma    = 16
+	numLumaDiv = 3
 )
 
 var (
@@ -87,8 +88,8 @@ func main() {
 	disChroma = flag.Bool("disChroma", false, "Do not output chroma image")
 	disLuma = flag.Bool("disLuma", false, "Do not output luma image")
 	outDir = flag.String("outDir", "out", "output directory")
-	imgWidth = flag.Float64("width", 512, "Width of output image")
-	imgHeight = flag.Float64("height", 512, "Height of output image")
+	imgWidth = flag.Float64("width", 3840, "Width of output image")
+	imgHeight = flag.Float64("height", 2160, "Height of output image")
 	superSample = flag.Float64("super", 8, "Super sampling x/y size")
 	startFrame = flag.Float64("start", 1, "Start on this frame number")
 	endFrame = flag.Float64("end", 3600, "Stop on this frame number")
@@ -339,7 +340,7 @@ func updateOffscreen() bool {
 								if found {
 									//Add the value ( gamma correct ) to the total
 									//We later divide to get the average for super-sampling
-									pixel += paletteL[(it+uint32(frameCount))%numLuma]
+									pixel += paletteL[(it+uint32(frameCount/numLumaDiv))%numLuma]
 
 									if !*disChroma {
 										tr, tg, tb := colorutil.HsvToRgb(float64((it)*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
