@@ -335,7 +335,7 @@ func updateOffscreen() bool {
 									//We later divide to get the average for super-sampling
 									pixel += paletteL[it]
 
-									tr, tg, tb := colorutil.HsvToRgb(float64((it+uint32(frameCount))*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
+									tr, tg, tb := colorutil.HsvToRgb(float64((it)*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
 									//We already gamma corrected, so use gamma 1.0 for chroma
 									//But still convert from 8 bits to 16, to match the luma
 									r += paletteC[tr]
