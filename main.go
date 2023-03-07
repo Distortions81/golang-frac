@@ -20,7 +20,7 @@ const (
 	iterCap  = 10000
 	iterMin  = 100
 	preIters = 10
-	numLuma  = 96
+	numLuma  = 48
 )
 
 var (
@@ -100,7 +100,7 @@ func main() {
 	gammaChroma = flag.Float64("gammaChroma", 1.0, "Chroma gamma")
 	zoomAdd = flag.Float64("zoomAdd", 1, "Zoom step size")
 	zSpeedDiv = flag.Float64("zSpeedDiv", 1.0, "Zoom speed divisor")
-	colorDegPerInter = flag.Int("colorDegPerInter", 4, "Color degrees per iteration")
+	colorDegPerInter = flag.Int("colorDegPerInter", 1, "Color degrees per iteration")
 	numThreads = flag.Int("numThreads", DnumThreads, "Number of threads to use")
 	workBlock = flag.Float64("workBlock", 32, "Work block size x/y size")
 	colorBrightness = flag.Float64("colorBrightness", 0.5, "HSV brightness of the chroma")
