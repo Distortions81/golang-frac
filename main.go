@@ -333,14 +333,16 @@ func updateOffscreen() bool {
 								if found {
 									//Add the value ( gamma correct ) to the total
 									//We later divide to get the average for super-sampling
-									pixel += paletteL[it]
+									pixel += paletteL[+uint32(frameCount)%it] /* Rotate luma */
 
-									tr, tg, tb := colorutil.HsvToRgb(float64((it)*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
-									//We already gamma corrected, so use gamma 1.0 for chroma
-									//But still convert from 8 bits to 16, to match the luma
-									r += paletteC[tr]
-									g += paletteC[tg]
-									b += paletteC[tb]
+									if !*disChroma {
+										tr, tg, tb := colorutil.HsvToRgb(float64((it)*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
+										//We already gamma corrected, so use gamma 1.0 for chroma
+										//But still convert from 8 bits to 16, to match the luma
+										r += paletteC[tr]
+										g += paletteC[tg]
+										b += paletteC[tb]
+									}
 								}
 							}
 						}
