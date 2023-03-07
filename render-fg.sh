@@ -1,2 +1,2 @@
 #!/bin/bash
-nice -n 20 ./golang-frac -end 3600 -escape 4 -gammaLuma 1 -height 1080 -iters 10000 -offx 1.4789066795775936 -offy 0.002544532441416673 -outDir out -super 6 -width 1920 -workBlock 32 -zSpeedDiv 1.1 -zoom 100 -zoomAdd 1 -disChroma
+./golang-frac -start 500 -end 3600 -width 1920 -height 1080 -offx 1.4789066795775936 -offy 0.002544532441416673 -super 8 -zoomAdd 1

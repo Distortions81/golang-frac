@@ -20,6 +20,7 @@ const (
 	iterCap  = 10000
 	iterMin  = 100
 	preIters = 10
+	numLuma  = 96
 )
 
 var (
@@ -29,6 +30,7 @@ var (
 	imgWidth         *float64
 	imgHeight        *float64
 	superSample      *float64
+	startFrame       *float64
 	endFrame         *float64
 	offX             *float64
 	offY             *float64
@@ -85,9 +87,10 @@ func main() {
 	disChroma = flag.Bool("disChroma", false, "Do not output chroma image")
 	disLuma = flag.Bool("disLuma", false, "Do not output luma image")
 	outDir = flag.String("outDir", "out", "output directory")
-	imgWidth = flag.Float64("width", 3840, "Width of output image")
-	imgHeight = flag.Float64("height", 2160, "Height of output image")
+	imgWidth = flag.Float64("width", 512, "Width of output image")
+	imgHeight = flag.Float64("height", 512, "Height of output image")
 	superSample = flag.Float64("super", 8, "Super sampling x/y size")
+	startFrame = flag.Float64("start", 1, "Start on this frame number")
 	endFrame = flag.Float64("end", 3600, "Stop on this frame number")
 	offX = flag.Float64("offx", 0, "X offset")
 	offY = flag.Float64("offy", 0, "Y offset")
@@ -97,9 +100,9 @@ func main() {
 	gammaChroma = flag.Float64("gammaChroma", 1.0, "Chroma gamma")
 	zoomAdd = flag.Float64("zoomAdd", 1, "Zoom step size")
 	zSpeedDiv = flag.Float64("zSpeedDiv", 1.0, "Zoom speed divisor")
-	colorDegPerInter = flag.Int("colorDegPerInter", 1, "Color degrees per iteration")
+	colorDegPerInter = flag.Int("colorDegPerInter", 4, "Color degrees per iteration")
 	numThreads = flag.Int("numThreads", DnumThreads, "Number of threads to use")
-	workBlock = flag.Float64("workBlock", 64, "Work block size x/y size")
+	workBlock = flag.Float64("workBlock", 32, "Work block size x/y size")
 	colorBrightness = flag.Float64("colorBrightness", 0.5, "HSV brightness of the chroma")
 	colorSaturation = flag.Float64("colorSaturation", 0.8, "HSV saturation of the chroma")
 	numInterations = flag.Int("iters", 2500, "Max number of iterations")
@@ -144,14 +147,17 @@ func main() {
 	//Make gamma LUTs
 	var i uint32
 	for i = 0; i < numIters; i++ {
-		paletteL[i] = uint32(math.Pow(float64(i)/float64(numIters), *gammaLuma) * 0xFFFF)
+		paletteL[i] = uint32(math.Pow(float64(i)/float64(numLuma), *gammaLuma) * 0xFFFF)
 	}
 	for i := range paletteC {
 		paletteC[i] = uint32(math.Pow(float64(i)/float64(0xFF), *gammaChroma) * 0xFF)
 	}
 
 	//Zoom needs a pre-calculation
-	calcZoom()
+	for c := 0; c < int(*startFrame); c++ {
+		calcZoom()
+	}
+	frameCount = *startFrame
 
 	//Render loop
 	for {
@@ -333,7 +339,7 @@ func updateOffscreen() bool {
 								if found {
 									//Add the value ( gamma correct ) to the total
 									//We later divide to get the average for super-sampling
-									pixel += paletteL[+uint32(frameCount)%it] /* Rotate luma */
+									pixel += paletteL[(it+uint32(frameCount))%numLuma]
 
 									if !*disChroma {
 										tr, tg, tb := colorutil.HsvToRgb(float64((it)*uint32(*colorDegPerInter)%360), *colorSaturation, *colorBrightness)
