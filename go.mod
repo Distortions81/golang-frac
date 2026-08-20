@@ -1,6 +1,7 @@
 module golang-frac
 
-go 1.17
+go 1.26.6
+toolchain go1.26.6
 
 require (
 	github.com/PerformLine/go-stockutil v1.9.3
